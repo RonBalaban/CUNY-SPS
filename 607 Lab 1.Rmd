@@ -1,0 +1,79 @@
+---
+title: "Fall 2023 DATA 607 Week 1 Assignment"
+author: "Ron Balaban"
+date: "2023-09-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+*Article:* 'We Watched 906 Foul Balls To Find Out Where The Most Dangerous Ones Land'
+
+*Article Link:* https://fivethirtyeight.com/features/we-watched-906-foul-balls-to-find-out-where-the-most-dangerous-ones-land/
+
+*Zone locations:* https://fivethirtyeight.com/wp-content/uploads/2019/07/choi-foul-0625-4-2.png
+
+*Overview:* This article and dataset looked to analyze where is the most dangerous place to sit in a Baseball stadium, as there have been several instances of high-speed balls hitting baseball game attendees at 10 stadiums with the most foul-heavy baseballs from 3/29/19 to 6/2/19 . The article estimated that 1750 fans are hit by baseballs at MLB games annually, and that there were injured fans who were both protected and unprotected by the safety netting in the arena. The zones in the dataset have been divided into primarily 2 categories- Zones 1,2,3 which are zones protected by the standard safety netting due to their central proximity to the batting area and 4 bases, and zones 4-7 which are the exterior zones and aren't always protected. 
+
+
+### Loading and subsetting data
+```{r}
+library(ggplot2)
+library(tidyverse)
+library(openintro)
+
+foulballsoriginal <- read.csv(url("https://raw.githubusercontent.com/fivethirtyeight/data/master/foul-balls/foul-balls.csv"))
+foulballs <- as.data.frame(foulballsoriginal)
+# This has 906 rows of data, with the fields- matchup, game_data, type_of_hit, exit_velocity, predicted_zone, camera_zone, used_zone
+
+# For the sake of analysis, I'm only interested in instances where the speed of the ball is known. In this case, 580 rows of original 906
+foulballs_new <- subset(foulballs, exit_velocity > 0)
+# I am also uninterested in cases where the batter hit himself, which is only 5 instances. 575 observations in this new frame.
+foulballs_new <- subset(foulballs_new, type_of_hit != 'Batter hits self')
+
+colnames(foulballs_new) <- c("Game","Game_Date","Ball_Type","Ball_Speed","Predicted_Zone", "Camera_Zone","Used_Zone")
+
+```
+
+
+### Frequency of Games Played
+```{r}
+# I want to see how many games were played on each day
+ggplot(foulballs_new, aes(y = Game_Date)) + geom_bar() +
+xlab('Frequency') + ylab('Game Date') + labs(title = "Count of Games Played") 
+```
+
+### Frequency of ball hit types 
+```{r}
+# I'd also like to see the frequency of each type of hit- whether it's a flyball, pop-up, ground-ball, etc.
+ggplot(foulballs_new, aes(x = Ball_Type, color=Ball_Type, fill = Ball_Type, label=Ball_Type)) + geom_bar() +
+geom_text(aes(label = ..count..), stat = "count", vjust = 2, color = "black")+
+xlab('Frequency') + ylab('Type ') + labs(title = "Frequency of Ball Types") + theme(legend.position = "none") 
+
+# Total of  575 foul balls, 370 were fly, 117 were ground, 42 were line, and 46 were pop-up. I have excluded the 5 instances where the batter hit himself.
+```
+
+# Ball exit speeds per zone and type
+```{r}
+# Ball speeds per zone and type
+ggplot(foulballs_new, aes(x = Ball_Speed, y = Used_Zone, color = Ball_Type)) + geom_point() 
+
+
+# And now to examine the speeds per zone
+ggplot(foulballs_new, aes(x = Ball_Speed, y = Used_Zone, color = Ball_Type )) + geom_point() + facet_wrap(~Used_Zone) +
+xlab('Speed') + ylab('Zone') + labs(title = "Frequency of Ball Speeds per Zone")
+```
+
+
+*Conclusions:* It seems that there does in fact seem to be a positive correlation with ball speed with the zone the ball actually landed in, which logically makes sense as the ball needs to be hit harder to travel further. This is true as all the balls in zones 6/7 were flyballs, whereas all the other zones had all type of ball hits, such as ground balls, line drives, and pop-ups. Given that ground balls generally aren't a threat to spectators sitting in the stand,  fly-balls and pop-ups tend to have a high vertical arc and can be seen, predicted, and avoided if not caught by the players on the pitch, then it stands to reason that line drives are the most dangerous as they have a high speed and travel in a nearly straight arc. 
+
+According to this article, ' the ball left Almora’s bat at 106.3 mph and covered a distance of 158 feet, per MLB’s data. The ball took just 1.2 seconds to reach the seats, according to Dr. John Eric Goff, professor of physics at the University of Lynchburg and author of “Gold Medal Physics: The Science of Sports." ... Given that a fan may not be focused on every batted ball, they may have only 0.6 seconds to get out of the way of a 106-mph line drive.' (https://www.washingtonpost.com/sports/2019/06/05/mlbs-netting-dilemma-with-current-standards-danger-is-just-second-away/)
+
+This article has a fascinating visual metric that shows how much reaction time a spectator would have if a baseball was traveling directly towards them, and the victim of the baseball was sitting just out of range of where the netting ended.
+(https://www.washingtonpost.com/wp-apps/imrs.php?src=https://arc-anglerfish-washpost-prod-washpost.s3.amazonaws.com/public/4KMGEQNY35FCVAHB6JOKLYIKVM.jpg&w=916)
+
+Overall, I agree that strong netting be installed all around the field and structually re-enforced and checked for damage to ensure noone is injured due to a tear in the netting. I would be interested in seeing how this analysis is extended if the data included more fields and dates, as this dataset only contains 3 months worth of data. 
+
+
