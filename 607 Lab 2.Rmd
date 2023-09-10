@@ -1,0 +1,61 @@
+---
+title: "Fall 2023 DATA 607 Week 2 Assignment"
+author: "Ron Balaban"
+date: "2023-09-09"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### 6 Recent popular movies:
+
+- The Barbie Movie
+- Oppenheimer
+- Spider-Man: Across the Spider-Verse
+- The Super Mario Bros. Movie
+- Bullet Train
+- Indiana Jones and the Dial of Destiny
+
+
+### Loading the data in
+```{r}
+library(dplyr)
+library(dbplyr)
+library(tidyverse)
+library(odbc)
+
+# Establishing a connection to MySQL workbench to access the movies table I made there
+install.packages("odbc");require("odbc")
+
+con <- dbConnect(odbc::odbc(), 
+                 .connection_string = "Driver={MySQL ODBC 8.0 Unicode Driver};", 
+                 Server= "localhost", Database= "data", UID= "root", PWD = MySQL_Password,
+                 Port= 3306)
+
+
+# Alternatively, install.packages(c("DBI,"RMySQL")) and con <- dbConnect(RMySQL),host="localhost",user="root",dbname="movies")
+
+
+moviesdata <- dbGetQuery(con, "SELECT * FROM data.movies")  # Pulling the entire movies table
+moviesframe <- as.data.frame(moviesdata) # Convert to dataframe
+moviesframe
+
+```
+
+I'd like to know the average score of the movies. However, some movies have not been seen, so we'll ignore the N/A ratings
+```{r}
+
+avg_scores <- rowMeans(moviesframe[,3:7],na.rm = TRUE)
+# Provides average rating values of the 6 movies across the surveyed participants
+# 4.25 3.75 4.20 4.25 3.40 3.00
+
+```
+
+
+
+I also considered the approach of having a seperate table for those who provided their movie ratings, called 'participants', that stored the following data; Participant_ID,  Participant_Name, and a list of which movies they had seen/rated. I thought to perform a join on movies.rating_X  to  participant.Participant_ID, but the tables were not structured entirely normalized. 
+
+
+
