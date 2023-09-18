@@ -1,0 +1,100 @@
+---
+title: "Fall 2023 DATA 607 Week 3 Assignment"
+author: "Ron Balaban"
+date: "2023-09-16"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+(1) Using the 173 majors listed in fivethirtyeight.com’s College Majors dataset; (https://github.com/fivethirtyeight/data/tree/master/college-majors) found in [https://fivethirtyeight.com/features/the-economic-guide-to-picking-a-college-major/], provide code that identifies the majors that contain either "DATA" or "STATISTICS"
+
+```{r}
+library(tidyverse)
+library(openintro)
+library(stringr)
+
+majors_raw <- read.csv(url("https://raw.githubusercontent.com/fivethirtyeight/data/master/college-majors/majors-list.csv"))
+majors_frame <- as.data.frame(majors_raw)
+
+desired_majors <- majors_frame %>% 
+  filter(str_detect(Major, regex("DATA|STATISTICS")))
+  
+desired_majors
+```
+
+
+------------------------------------------------------------------------------------------------------------
+
+(2) Write code that transforms the data below:
+
+[1] "bell pepper"  "bilberry"     "blackberry"   "blood orange"
+[5] "blueberry"    "cantaloupe"   "chili pepper" "cloudberry"  
+[9] "elderberry"   "lime"         "lychee"       "mulberry"    
+[13] "olive"        "salal berry"
+
+Into a format like this:
+
+c("bell pepper", "bilberry", "blackberry", "blood orange", "blueberry", "cantaloupe", "chili pepper", "cloudberry", "elderberry", "lime", "lychee", "mulberry", "olive", "salal berry")
+
+```{r}
+library(stringr)
+
+fruits <- str_flatten(c("bell pepper", "bilberry", "blackberry", "blood orange", "blueberry", "cantaloupe", "chili pepper", "cloudberry", "elderberry", "lime", "lychee", "mulberry", "olive", "salal berry"), "', '")
+
+fruits
+
+# This seems like we'd build a list of some input of fruits, and place them in a character vector
+```
+
+
+------------------------------------------------------------------------------------------------------------
+
+(3) Describe, in words, what these expressions will match:
+
+
+(.)\1\1
+This will match all words that contain 1 specific character (not a newline) repeating at least 3 times. Since the . is in the capturing parenthesis (), we can refer back to it using \N where N is some number 1-9. The \1 just checks to see if it repeats 1 time, and the second \1 checks to see if it repeats again. In short, this Regex checks to see if some case-sensitive character is repeating in multiples of 3 times. For example; AA will not match, but AAA will match. AAaAA will not match, but AAAaAAA will match. AAAA will not match, as there are 4 characters, but we should have 3 identical characters repeating in multiples of 3- AAABBBCCC will match.
+
+
+"(.)(.)\\2\\1"
+Since there's quotes, we have to use the double-slash, so this is effectively asking for the (.)(.)\2\1 expression. This expression takes 2 characters, and then repeats them. So for example, abba will match, as a is the first (.), and b is the second (.), and the expression will look for b to be the 3rd character, and a to be the 4th. Another match would be cddce, as the 1st and 4th character match, as do the 2nd and 3rd.
+
+
+(..)\1
+This expression looks to see if there are 2 characters that repeat 1 or more times in a pair. For example, ABAB matches as there is a pair of AB's. ABABAB does not match since there is an ABAB and AB without another AB. ABABABAB will match as there are 2 pairs of ABAB. It's like looking to see if there are an even number of couples, where the A's are dating B's. It simply takes 2 characters, and repeats it. 
+
+
+(.).\1.\1
+This expression takes some character, and makes it repeat again in the 3rd and 5th position of some expression, where the other characters don't matter. For example, abaca is a match, as is ofogoa. 
+
+
+(.)(.)(.).*\3\2\1
+This expression looks at some expression that is at least 6 characters long, and checks to see if the first 3 characters show up in reverse order at some point in the word. Matches include abccba,abcddddcba, and abctyfgtyuuyghcba. 
+
+
+
+------------------------------------------------------------------------------------------------------------
+
+
+(4) Construct regular expressions to match words that:
+
+Start and end with the same character.
+^(.).*\1$
+
+
+Contain a repeated pair of letters (e.g. "church" contains "ch" repeated twice.)
+(.)(.).*?\1\2
+
+
+Contain one letter repeated in at least three places (e.g. "eleven" contains three "e"s.
+((.)*?){3,}
+
+
+
+
+
+
