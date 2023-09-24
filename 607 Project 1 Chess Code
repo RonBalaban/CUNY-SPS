@@ -2,8 +2,19 @@
 title: "607 Project 1"
 author: "Ron Balaban"
 date: "2023-09-23"
-output: html_document
+output:
+  html_document: default
+  pdf_document: default
 ---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache =TRUE)
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning = FALSE)
+knitr::opts_chunk$set(message = FALSE)
+```
+
 
 
 Possibly needed libraries
@@ -20,7 +31,7 @@ library(tidyr)
 # Assignment information #
 
 In this project, you’re given a text file with chess tournament results where the information has some structure. Your
-job is to create an R Markdown file that generates a .CSV file (that could for example be imported into a SQL database)
+job is to create an R Markdown file that generates a . CSV file (that could for example be imported into a SQL database)
 with the following information for all of the players:
 
 Player’s Name, Player’s State, Total Number of Points, Player’s Pre-Rating, and Average Pre Chess Rating of Opponents
@@ -35,13 +46,10 @@ If you have questions about the meaning of the data or the results, please post 
 science, like chess, is a game of back and forth…
 
 The chess rating system (invented by a Minnesota statistician named Arpad Elo) has been used in many other contexts,
-including assessing relative strength of employment candidates by human resource departments.
+including assessing the relative strength of employment candidates by human resource departments.
 You may substitute another text file (or set of text files, or data scraped from web pages) of similar or greater
 complexity, and create your own assignment and solution. You may work in a small team. All of your code should be in
-an R markdown file (and published to rpubs.com); with your data accessible for the person running the script.
-
-
-
+an R markdown file (and published to rpubs.com); with your data accessible to the person running the script.
 
 
 ```{r}
@@ -51,8 +59,8 @@ head(chess_raw, 15)
 nrow(chess_raw)  # 196 rows
 ncol(chess_raw) # 1 column
 
-# We need to generate a csv file with the Player’s Name, Player’s State, Total Number of Points, Player’s Pre-Rating, and Average Pre Chess Rating of Opponents.
-# This is 5 columns, and the last column is an average of at most 7 other numbers. Unfortunately, the data is all just 1 column, and must be split up 
+# We need to generate a CSV file with the Player’s Name, Player’s State, Total Number of Points, Player’s Pre-Rating, and Average Pre-Chess Rating of Opponents.
+# This is 5 columns, and the last column is an average of at most 7 other numbers. Unfortunately, the data is all just 1 column and must be split up 
 
 # Looking at the data itself, it seems we don't need the first 4 rows, we only care about the data with the players themselves, starting with Gary Hua. We should also ignore all the rows that just have the "-" character, which happens on row 4,7,10,13- so every 3 rows.
 
@@ -67,7 +75,7 @@ head(chess_players)
 #  1 | GARY HUA |6.0  |W  39|W  21|W  18|W  14|W   7|D  12|D   4|
 
 
-# But this is only half the data, so I need a second matrix from chess_raw, which contains the other half of data such as state , ID, rating
+# But this is only half the data, so I need a second matrix from chess_raw, which contains the other half of the data such as state, ID, rating
 chess_players2 <- chess_matrix[seq(6,length(chess_matrix),3)]
 head(chess_players2)
 
@@ -85,30 +93,30 @@ head(combined_players)
 # https://regex101.com/
 
 
---------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
 # Player Name
 chess_player_name <-  str_trim(str_extract(chess_players, "(\\w+\\s){2,3}")) 
 # The regex \w is a metacharacter, like \d, that looks for any one word/non-word character, which are [a-zA-Z0-9_]. Just easier to type
 # The regex \s is any one space/non-space character, which are [ \n\r\t\f]  (newline, return, tab, form feed)
 # {2,3} is repetition, meaning some word to repeat between 2 or 3 times.
-# Altogether, the Regex above simply looks for a word, followed by a 
+# Altogether, the Regex above simply looks for a word
 head(chess_player_name)
 
 
---------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
 # Player State
 chess_player_state <- str_extract(chess_players2, "[A-Z]{2}")
 head(chess_player_state)
 # Same as \w above
 
 
---------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
 # Player Points
 chess_player_points <- as.numeric(str_extract(chess_players, "[0-9]\\.[0-9]"))
 head(chess_player_points)
 
 
---------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
 # player pre-game rating
 # It's currently stored as a string, which we will convert
 chess_player_prerating <- str_extract(chess_players2, "\\s\\d{3,4}[^\\d]")  #This looks for a players score which could be 3 or 4 digits
@@ -116,21 +124,21 @@ chess_player_prerating <- as.integer(str_extract(chess_player_prerating, "\\d+")
 head(chess_player_prerating)
 
 
---------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
 # We got the first 4 requested fields, now we need to find the average pre-chess rating for all opponents, for each player.
 # First we should find how many opponents each player had. We can get this from looking at our first matrix, chess_players, which has the Number ID of each player. The ID is a 2-digit numeric character
 
   
 # matching all combinations of 1 letter 2 spaces and any numbers
 Opponent_IDs <- str_extract_all(chess_players, "\\d+\\|")
-# Look for the ID's, which occur right before the | character in our first matrix
+# Look for the ID's, that occur right before the | character in our first matrix
 # This Regex looks for numeric digits that occur 1 or more times.
 Opponent_IDs <- str_extract_all(Opponent_IDs, "\\d+")
 # I originally did  "\\d+"  , which does in fact pull all the numbers, but it also pulled the row number itself, along with the total points, which is wrong.  The +\\| is needed to let the Regex know to only look at the numbers followed by a |
 head(Opponent_IDs)
 
 
-# Now that we know the ID's of each players opponent, we know how many players they faced, thus we can calculate the average pre-chess rating for each player's opponents. 
+# Now that we know the ID's of each player's opponent, we know how many players they faced, thus we can calculate the average pre-chess rating for each player's opponents. 
 
 
 
@@ -143,35 +151,27 @@ for(i in num_opponents)
   {
   avg_opponent_prerating[i] <- mean(chess_player_prerating[as.numeric(Opponent_IDs[[i]])])
   }
-# This loops looks at the chess_player_prerating
+# This loop looks at the chess_player_pre-rating for each opponent, averages them, for each player
 # For loop documentation; https://www.dataquest.io/blog/for-loop-in-r/
 
-# Round to nearest number
+# Round to the nearest number
 avg_opponent_prerating <- round(avg_opponent_prerating, 0)
 head(avg_opponent_prerating)
 
 
---------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
 # Turn into dataframe
 Chess_dataframe_final <- data.frame(list(chess_player_name, chess_player_state, chess_player_points, chess_player_prerating,avg_opponent_prerating))
 colnames(Chess_dataframe_final) <- c("Name", "State", "Total Points", "Player Pre-Rating", "Average Opponent Pre-Rating")
+
+
+Chess_dataframe_final  # Display the data frame with all finalized fields.
+
+
 write.csv(Chess_dataframe_final, file = "Chess_Results.csv", col.names= TRUE, row.names= FALSE)
 
 
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
