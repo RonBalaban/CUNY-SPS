@@ -1,0 +1,447 @@
+---
+title: "607 Project 2- Data Transformation"
+author: "Ron Balaban"
+date: "2023-10-06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+#### Possibly needed libraries
+```{r}
+library(tidyverse)
+library(openintro)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+```
+
+
+
+# Dataset 1; AirBnB
+###### (Found here: https://www.kaggle.com/datasets/dgomonov/new-york-city-airbnb-open-data)
+```{r}
+airbnb_url <- "https://raw.githubusercontent.com/RonBalaban/CUNY-SPS-R/main/AB_NYC_2019.csv"
+airbnb_raw <- read.csv(airbnb_url, header = TRUE, stringsAsFactors = FALSE)
+head(airbnb_raw)
+```
+
+## Transform to dataframe
+```{r}
+airbnb_df <- as.data.frame(airbnb_raw)  
+airbnb_df <- subset(airbnb_df, price > 0) # Remove those with price missing
+head(airbnb_df)
+```
+
+## Prices overall
+```{r}
+
+ggplot(airbnb_df, aes(x = price)) +
+  geom_histogram(bins = 50, fill = "blue", color = "white", alpha = 0.8) +
+  scale_x_continuous(limits = c(0, 1000), breaks = seq(0, 1000, by = 100)) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.05))) +  # A solid scale like above seems to miss some data
+  geom_vline(xintercept = median(airbnb_df$price), color = "red", linewidth = 1, linetype = "solid") +
+  geom_vline(xintercept = mean(airbnb_df$price), color = "darkgreen", linewidth = 1, linetype = "solid") +
+  annotate("text", x = 500, y = 2500, label = "Median Price =  $106", color = "red", size = 5) +
+  annotate("text", x = 500, y = 3500, label = "Mean Price =  $163", color = "darkgreen", size = 5) +
+  labs(x = "Price", y = "Frequency", title = "NYC AirBnB Prices")
+```
+
+###### We can see that the majority of the data for AirBnB lies within price range of 0 to 300, with a few outliers. Will revisit the outliers later.
+
+
+
+## Frequency of Prices per neighborhood
+```{r}
+# Get Mean and Median prices for each neighborhood
+price_neighborhood_group <- airbnb_df %>% 
+  group_by(neighbourhood_group) %>% 
+  dplyr::summarise(median_price = round(median(price),0),
+                   mean_price   = round(mean(price),0))
+
+
+# Plot- more detailed breakdown of prior graph.
+ggplot(airbnb_df, aes(x = price)) +
+  geom_histogram(bins = 50, fill = "blue", color = "white", alpha = 0.8) +
+  scale_x_continuous(limits = c(0, 1000), breaks = seq(0, 1000, by = 100)) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.05))) +  
+  labs(x = "Price", y = "Frequency", title = "NYC AirBnB Prices per Neighborhood") +
+  facet_wrap(~neighbourhood_group) +
+  geom_text(data = price_neighborhood_group, y = 3000, aes(x = 500, label = paste("Mean Price = $", mean_price)), color = "darkgreen", size = 3) +
+  geom_text(data = price_neighborhood_group, y = 2500, aes(x = 500, label = paste("Median Price = $", median_price)), color = "red", size = 3)
+  
+```
+
+###### Price breakdown for AirBnB rentals per neighborhood. As expected, the majority of the data is contained within Brooklyn and Manhattan.
+
+
+
+
+## Price versus reviews
+```{r}
+
+ggplot(airbnb_df, aes(x = number_of_reviews, y = price, color = room_type)) +
+  #geom_point(alpha = 0.5, color = "blue") +
+  geom_point() +
+  facet_wrap(~neighbourhood_group, scales = "free") +
+  scale_x_continuous(limits = c(0, 650), breaks = seq(0, 650, by = 100)) +
+  #scale_y_continuous(limits = c(0, 10000), breaks = seq(0, 10000, by = 2500)) +
+  labs(x = "Number of Reviews", y = "Price", title = "Price vs Reviews")
+```
+
+###### You can see that a majority of rentals are for people taking the entire place to themself, as very few would want to share a room or apartment on their vacation. However, there does not seem to be a strong correlation between how many reviews a place has and its price, as there are many AirBnB's with a low price and few reviews. Let's look at this again, but where the plot is denser and we have more data to view- let's cap the price at 1000
+
+
+
+## Price versus reviews below 1000$
+```{r}
+
+airbnb_df_below1000 <- airbnb_df %>% 
+  filter(price < 1000)
+
+
+ggplot(airbnb_df_below1000, aes(x = number_of_reviews, y = price, color = room_type)) +
+  #geom_point(alpha = 0.5, color = "blue") +
+  geom_point() +
+  facet_wrap(~neighbourhood_group, scales = "free") +
+  scale_x_continuous(limits = c(0, 650), breaks = seq(0, 650, by = 100)) +
+  #scale_y_continuous(limits = c(0, 10000), breaks = seq(0, 10000, by = 2500)) +
+  labs(x = "Number of Reviews", y = "Price", title = "Price vs Reviews for AirBnB below 1000$")
+
+
+#-------------------------------------------------------------------------------
+# Looking at the outliers for price vs reviews
+airbnb_manyreviews_highprice <- airbnb_df %>% 
+  filter(number_of_reviews > 400 & price > 500)
+
+ggplot(airbnb_manyreviews_highprice, aes(x = number_of_reviews, y = price)) +
+  #geom_point(alpha = 0.5, color = "blue") +
+  geom_point() +
+  geom_text(label = airbnb_manyreviews_highprice$name) +
+  facet_wrap(~neighbourhood_group, scales = "free") +
+  scale_x_continuous(limits = c(446, 448), breaks = seq(446,448, by = 1)) +
+  scale_y_continuous(limits = c(574, 576), breaks = seq(574,576, by = 1)) +
+  labs(x = "Number of Reviews", y = "Price", title = "Price vs Reviews for AirBnB over 1000$")
+```
+
+###### Here, we have a better view of the data. It seems that the 2 fields don't really have a solid correlation on each other, as there are many rentals with a low price, but few reviews. There are also many rentals with a low price, but many reviews. However, what is obvious, is that as the price increases, there will generally be less reviews as fewer customers will want to rent the unit, and hence there will be less reviews. 
+
+###### Interestingly enough, there is an AirBnB in Manhattan that has ~450 reviews and costs ~600. Looking into why this one AirBnB stands out so much, it becomes obvious; it's a beautiful 2500 sq. ft. apartment with its own elevator, which out of curiosity I found on Google Maps;
+
+###### [Coordinates](https://i.imgur.com/hB0BqWj.png)
+###### [Aparment](https://streeteasy.com/building/114-franklin-street-new_york/3flr)
+
+
+
+
+
+
+  
+## AirBnB types per neighborhood
+```{r}
+airbnb_neighborhood_homes <-airbnb_df %>%
+  group_by(neighbourhood_group) %>%
+  count(room_type)
+
+airbnb_neighborhood_homes   
+
+# Types of AirBnB's in each neighborhood
+ggplot(airbnb_neighborhood_homes, aes(x = neighbourhood_group, y = n, fill = room_type)) +
+  geom_bar(position = "dodge", stat = "identity") +
+  labs(title = "Types of AirBnB's", x = "Neighbourhood", y = "Count") +
+  coord_flip()  
+
+```
+
+###### Once again, Brooklyn and Manhattan are the majority of rentals, and the majority are either for the entire place, or having their own room. In which case, they are probably sharing a place with their friends for vacation.
+
+
+
+## Types of AirBnB's in each Neighborhood
+```{r}
+ggplot(data = airbnb_df) + 
+  geom_bar(mapping = aes(x=room_type, fill=neighbourhood_group), position = "dodge") +
+  labs(title = "AirBnB Listings per Neighborhood ", x = "Listings", y = "Count") +
+  coord_flip()  
+```
+
+
+
+# AirBnb prices in each neighborhood
+```{r}
+# By neighborhood
+airbnb_neighborhood_prices <-airbnb_df %>%
+  group_by(neighbourhood_group, neighbourhood) %>% 
+  summarize(avg_price = mean(price),
+            min_price = min(price), 
+            max_price = max(price))
+
+ggplot(data = airbnb_neighborhood_prices, aes(x = neighbourhood, y = avg_price, color = neighbourhood)) + 
+  geom_point() +
+  labs(title = " Average Prices per neighborhood") +
+  xlab("Neighborhood") + ylab("Average Price") + 
+  theme(axis.text.x=element_blank()) + # axis.text.x=element_blank() removes all neighborhood names
+  theme(legend.position = "none") +
+  facet_wrap(~neighbourhood_group) 
+```
+
+###### The majority of the more expensive places are in Manhattan, with some very odd outliers with a price over 400 in the other boroughs of NYC. This is because of some ridiculous outliers that cost more than 2500, as seen in 'Price versus reviews'
+
+```{r}
+outliers <- airbnb_df %>% 
+  filter(price >= 2500)
+
+outliers  %>% 
+  group_by(neighbourhood_group, neighbourhood) %>% 
+  arrange(price)
+
+
+ggplot(data = outliers, aes(x = price, fill = neighbourhood_group)) + 
+  geom_histogram(bins= 100) +
+  labs(title = "Outlier Prices per neighborhood (2500$ +)") +
+  xlab("Price") + ylab("Frequency") + 
+  scale_x_continuous(limits = c(2000, 10500), breaks = seq(2000, 10000, by = 1000)) +
+  scale_y_continuous(limits = c(0, 12), breaks = seq(0, 12, by = 2))
+
+```
+
+###### These outliers are what causes the increase in the mean prices.
+
+
+  
+## AirBnB listings in Brooklyn & Manhattan
+```{r}
+airbnb_Brooklyn <- airbnb_df%>%
+  filter(neighbourhood_group == "Brooklyn")
+
+
+ggplot(airbnb_Brooklyn, aes(x = calculated_host_listings_count, y = neighbourhood, fill = room_type)) +
+  geom_bar(position = "dodge", stat = "identity") +
+  labs(title = "Listings in Brooklyn", x = "Listings", y = "Neighbourhood") 
+
+#-------------------------------------------------------------------------------
+
+airbnb_Manhattan <- airbnb_df%>%
+  filter(neighbourhood_group == "Manhattan")
+
+
+ggplot(airbnb_Manhattan, aes(x = calculated_host_listings_count, y = neighbourhood, fill = room_type)) +
+  geom_bar(position = "dodge", stat = "identity") +
+  labs(title = "Listings in Manhattan", x = "Listings", y = "Neighbourhood") 
+
+```
+
+
+
+
+
+
+
+# Dataset 2; Spotify 
+###### (Found here: https://www.kaggle.com/datasets/nelgiriyewithana/top-spotify-songs-2023)
+```{r}
+spotify_url <- "https://raw.githubusercontent.com/RonBalaban/CUNY-SPS-R/main/spotify-2023.csv"
+spotify_raw <- read.csv(spotify_url, header = TRUE, stringsAsFactors = FALSE)
+
+# Make into dataframe
+spotify_df <- as.data.frame(spotify_raw)  
+head(spotify_df)
+```
+###### This dataset contains a comprehensive list of the most famous songs of 2023 as listed on Spotify. The dataset offers a wealth of features beyond what is typically available in similar datasets. It provides insights into each song's attributes, popularity, and presence on various music platforms. The dataset includes information such as track name, artist(s) name, release date, Spotify playlists and charts, streaming statistics, Apple Music presence, Deezer presence, Shazam charts, and various audio features.
+
+
+
+## Removing messy data   
+```{r}
+# The data has lots of odd � errors (replacement character; https://charbase.com/fffd-unicode-replacement-character), mostly for  Hispanic  accents. 
+library(stringi)
+
+# Convert all non-ASCII characters to spaces in the song name
+spotify_df[,1] <- stringi::stri_trans_general(spotify_df[,1], "Latin-ASCII")
+spotify_df[,1] <- iconv(spotify_df[,1], to = "ASCII", sub = "")
+
+# Convert all non-ASCII characters to spaces in the artist name
+spotify_df[,2] <- stringi::stri_trans_general(spotify_df[,2], "Latin-ASCII")
+spotify_df[,2] <- iconv(spotify_df[,2], to = "ASCII", sub = "")
+
+```
+
+
+## Most popular songs based on Spotify Playlists
+```{r}
+most_popular_songs_spotifylists<- spotify_df %>% 
+  group_by(released_year, released_month, track_name) %>% 
+    summarise(Spotify_Playlist_Count = sum(in_spotify_playlists)) %>% 
+        arrange(desc(Spotify_Playlist_Count))
+
+head(most_popular_songs_spotifylists)
+```
+
+
+## Most popular songs based on streams
+```{r}
+library(scales)
+library(formattable)
+
+# Streams column not numeric, change that
+spotify_df$streams <- as.numeric(spotify_df$streams)
+
+# For the one with no value, just use average amount
+spotify_df[575,9] <- colMeans(spotify_df[ ,9, drop =FALSE], na.rm = TRUE)
+
+# Now that streams is a numeric field, we can get the total plays for each song
+most_popular_songs_streams<- spotify_df %>% 
+  group_by(released_year, released_month, track_name) %>% 
+    summarise(Stream_Plays = sum(streams)) %>% 
+        arrange(desc(Stream_Plays))
+
+
+# Just used to make the number legible
+my_comma <- scales::label_comma(accuracy = .1, big.mark = ",", decimal.mark = ".")
+most_popular_songs_streams$Stream_Plays <- my_comma(most_popular_songs_streams$Stream_Plays)
+
+# Output
+head(most_popular_songs_streams)
+  
+```
+
+##### So we now have the most popular songs based on the number of times they were streamed, and the number of playlists they're in.
+
+
+
+
+
+
+
+
+# Dataset 3; Diabetes 
+##### (Found here: https://www.kaggle.com/datasets/aemyjutt/diabetesdataanslysis)
+```{r}
+diabetes_url <- "https://raw.githubusercontent.com/RonBalaban/CUNY-SPS-R/main/diabetes.csv"
+diabetes_raw <- read.csv(diabetes_url, header = TRUE, stringsAsFactors = FALSE)
+
+# Make into dataframe
+diabetes_df <- as.data.frame(diabetes_raw)  
+head(diabetes_df)
+```
+
+## Change 0/1 Diabetes diagnosis to Negative/Positive diagnosis
+```{r}
+
+diabetes_df <- diabetes_df %>% 
+   mutate(Outcome = ifelse(Outcome == '1', "Positive", "Negative"))
+
+head(diabetes_df)
+
+```
+
+
+## Address missing values (Except for Pregnancy)
+```{r}
+diabetes_df <-  diabetes_df %>%
+  #mutate(across(.cols = Glucose:Age, .fns = ~ifelse(.x == 0, round(mean(.x), digits = 0), .x)))
+  mutate(across(.cols = Glucose:Age, ~ replace(., . == 0, round(mean(., na.rm = TRUE),0))))
+# Didn't mutate to zero-values as it could be men.
+
+head(diabetes_df)
+```
+
+## Basic histograms vs Diabetes Diagnosis
+```{r}
+library(plotly)
+library(gridExtra)
+
+
+g_preg <- ggplot(diabetes_df, aes(x=Pregnancies, fill = Outcome)) +
+  geom_histogram(binwidth = 0.5) + 
+  theme(legend.position = "none")
+
+g_glucose <- ggplot(diabetes_df, aes(x=Glucose, fill = Outcome)) +
+   geom_histogram(binwidth = 1) + 
+   theme(legend.position = "none")
+
+g_bp <-ggplot(diabetes_df, aes(x=BloodPressure, fill = Outcome)) +
+   geom_histogram(binwidth = 1) + 
+   theme(legend.position = "none")
+
+g_skin <-ggplot(diabetes_df, aes(x=SkinThickness, fill = Outcome)) +
+   geom_histogram(binwidth = 1) + 
+   theme(legend.position = "none")
+
+g_insulin <-ggplot(diabetes_df, aes(x=Insulin, fill = Outcome)) +
+   geom_histogram(binwidth = 1) + 
+   theme(legend.position = "none")
+
+g_bmi <-ggplot(diabetes_df, aes(x=BMI, fill = Outcome)) +
+   geom_histogram(binwidth = 1) + 
+   theme(legend.position = "none")
+
+g_dpf <-ggplot(diabetes_df, aes(x=DiabetesPedigreeFunction, fill = Outcome)) +
+   geom_histogram(binwidth = 0.05) + 
+   theme(legend.position = "none")
+
+g_age <-ggplot(diabetes_df, aes(x=Age, fill = Outcome)) +
+   geom_histogram() + 
+   theme(legend.position = "none")
+
+g_diabetes <-ggplot(diabetes_df, aes(x=Outcome, fill = Outcome)) +
+   geom_histogram(stat="count")
+
+#-------------------------------------------------------------------------------
+library(patchwork)
+# https://patchwork.data-imaginist.com/
+
+(g_preg + g_glucose + g_bp ) /
+(g_skin + g_insulin + g_bmi) /
+(g_dpf  + g_age     + g_diabetes)
+
+```
+
+##### What is immediately evident after looking at these distributions, is that you see higher rates of a positive diabetes in people with higher glucose, as there doesn't seem to be a strong correlation between the other fields. I attempted to find correlation between the other 8 fields with the diabetes outcome, but seeing as it is a character, I'd need to use logistic regression to measure it compared to the numeric features, by having the categorical feature as a target and numeric as an input. Alternatively, use Chi Square test and ANOVA (Analysis of Variance) (https://datascience.stackexchange.com/questions/893/how-to-get-correlation-between-two-categorical-variable-and-a-categorical-variab)
+
+
+
+
+## Attempt below, but was unsuccessful. 
+```{r}
+
+#categorical_var <- factor(c("Positive", "Negative"))
+# Convert the categorical variable to a binary variable
+#binary_var <- as.numeric(categorical_var) - 1
+# Calculate point-biserial correlation
+#correlation <- cor(binary_var, diabetes_df$Pregnancies)
+#-------------------------------------------------------------------------------
+# ANOVA attempt
+#anova_result <- aov(diabetes_df$Pregnancies ~ categorical_var)
+
+#-------------------------------------------------------------------------------
+# Base correlations won't work here.
+#cor(diabetes_df$Outcome, diabetes_df$Pregnancies)
+#cor(diabetes_df$Outcome, diabetes_df$Glucose)
+#cor(diabetes_df$Outcome, diabetes_df$BloodPressure)
+#cor(diabetes_df$Outcome, diabetes_df$SkinThickness)
+#cor(diabetes_df$Outcome, diabetes_df$Insulin)
+#cor(diabetes_df$Outcome, diabetes_df$BMI)
+#cor(diabetes_df$Outcome, diabetes_df$DiabetesPedigreeFunction)
+#cor(diabetes_df$Outcome, diabetes_df$Age)
+
+```
+
+
+
+## Those who have diabetes (268/ 768)
+```{r}
+diabetes_positive <- diabetes_df %>%
+  filter(Outcome == "Positive")
+
+diabetes_positive  %>%
+  group_by(Glucose, Age, BloodPressure) %>% 
+        arrange(desc(Glucose))
+
+```
+
+
