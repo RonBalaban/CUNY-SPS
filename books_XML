@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+  <row>
+    <Title>Rhythm of War</Title>
+    <Author>Brandon Sanderson</Author>
+    <Genre>Fantasy Fiction</Genre>
+    <Year>2020</Year>
+  </row>
+  <row>
+    <Title>Quiet</Title>
+    <Author>Susan Cain</Author>
+    <Genre>Psychology</Genre>
+    <Year>2012</Year>
+  </row>
+  <row>
+    <Title>The Witcher Omnibus</Title>
+    <Author>Paul Tobin, Joe Querio</Author>
+    <Genre>Fantasy Fiction</Genre>
+    <Year>2020</Year>
+  </row>
+</root>
