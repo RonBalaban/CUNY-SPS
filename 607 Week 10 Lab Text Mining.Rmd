@@ -1,0 +1,334 @@
+---
+title: "607 Week 10 Text Mining"
+author: "Ron Balaban"
+date: "2023-11-05"
+output: html_document
+---
+
+
+In Text Mining with R, Chapter 2 looks at Sentiment Analysis.  In this assignment, you should start by getting the primary example code from chapter 2 working in an R Markdown document.  You should provide a citation to this base code.  You’re then asked to extend the code in two ways:
+
+- Work with a different corpus of your choosing, and
+- Incorporate at least one additional sentiment lexicon (possibly from another R package that you’ve found through research).
+
+As usual, please submit links to both an .Rmd file posted in your GitHub repository and to your code on rpubs.com.  You make work on a small team on this assignment.
+
+
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Possibly needed Libraries
+```{r}
+library(httr)  
+library(tidytext)
+library(readtext)
+library(textdata)
+library(dplyr)
+library(stringr)
+library(janeaustenr)
+library(tidyr)
+library(ggplot2)
+library(wordcloud)
+library(reshape2)
+```
+
+
+In Text Mining with R, Chapter 2 deals with Sentiment Analysis. (https://www.tidytextmining.com/sentiment.html)
+It has 3 sentiment datasets; AFINN, bing, and nrc
+
+```{r}
+get_sentiments("afinn")
+get_sentiments("bing")
+get_sentiments("nrc")
+```
+
+
+
+Let's perform sentiment analysis on the example cited- books written by Jane Austen 
+```{r}
+tidy_books <- austen_books() %>%
+  group_by(book) %>%
+  mutate(
+    linenumber = row_number(),
+    chapter = cumsum(str_detect(text, 
+                                regex("^chapter [\\divxlc]", 
+                                      ignore_case = TRUE)))) %>%
+  ungroup() %>%
+  unnest_tokens(word, text)
+
+#-------------------------------------------------------------------------------
+
+nrc_joy <- get_sentiments("nrc") %>% 
+  filter(sentiment == "joy")
+
+#-------------------------------------------------------------------------------
+tidy_books %>%
+  filter(book == "Emma") %>%
+  inner_join(nrc_joy) %>%
+  count(word, sort = TRUE)
+
+```
+
+
+
+Now let's examine the overall sentiment for her books using bing
+```{r}
+ja_sentiments <- tidy_books %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(book, index = linenumber %/% 80, sentiment) %>%
+  pivot_wider(names_from = sentiment, values_from = n, values_fill = 0) %>% 
+  mutate(sentiment = positive - negative)
+
+
+ja_sentiments
+```
+
+
+And visualize it
+```{r}
+ggplot(ja_sentiments, aes(index, sentiment, fill = book)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~book, ncol = 3, scales = "free_x") +
+  ggtitle("Overall Sentiment of Jane Austen Books")
+```
+
+Comparing the three sentiment dictionaries
+```{r}
+pride_prejudice <- tidy_books %>% 
+  filter(book == "Pride & Prejudice")
+
+pride_prejudice
+```
+
+
+And visualize them for Pride and Prejudice
+```{r}
+afinn <- pride_prejudice %>% 
+  inner_join(get_sentiments("afinn")) %>% 
+  group_by(index = linenumber %/% 80) %>% 
+  summarise(sentiment = sum(value)) %>% 
+  mutate(method = "AFINN")
+
+bing_and_nrc <- bind_rows(
+  pride_prejudice %>% 
+    inner_join(get_sentiments("bing")) %>%
+    mutate(method = "Bing et al."),
+  pride_prejudice %>% 
+    inner_join(get_sentiments("nrc") %>% 
+                 filter(sentiment %in% c("positive", 
+                                         "negative"))
+    ) %>%
+    mutate(method = "NRC")) %>%
+  count(method, index = linenumber %/% 80, sentiment) %>%
+  pivot_wider(names_from = sentiment,
+              values_from = n,
+              values_fill = 0) %>% 
+  mutate(sentiment = positive - negative)
+
+
+
+bind_rows(afinn, 
+          bing_and_nrc) %>%
+  ggplot(aes(index, sentiment, fill = method)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~method, ncol = 1, scales = "free_y")
+```
+
+
+```{r}
+get_sentiments("nrc") %>% 
+  filter(sentiment %in% c("positive", "negative")) %>% 
+  count(sentiment)
+
+#-------------------------------------------------------------------------------
+get_sentiments("bing") %>% 
+  count(sentiment)
+```
+
+
+Most common positive and negative words
+```{r}
+bing_word_counts <- tidy_books %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(word, sentiment, sort = TRUE) %>%
+  ungroup()
+
+bing_word_counts
+
+#-------------------------------------------------------------------------------
+# Visualized
+
+bing_word_counts %>%
+  group_by(sentiment) %>%
+  slice_max(n, n = 10) %>% 
+  ungroup() %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(n, word, fill = sentiment)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~sentiment, scales = "free_y") +
+  labs(x = "Contribution to sentiment",
+       y = NULL)
+
+```
+
+Stop words we ignore
+```{r}
+custom_stop_words <- bind_rows(tibble(word = c("miss"),  
+                                      lexicon = c("custom")), 
+                               stop_words)
+
+custom_stop_words
+```
+
+
+
+Wordcloud to get most common words
+```{r}
+library(wordcloud)
+
+tidy_books %>%
+  anti_join(stop_words) %>%
+  count(word) %>%
+  with(wordcloud(word, n, max.words = 100))
+
+#-------------------------------------------------------------------------------
+# Reshaped
+library(reshape2)
+
+tidy_books %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(word, sentiment, sort = TRUE) %>%
+  acast(word ~ sentiment, value.var = "n", fill = 0) %>%
+  comparison.cloud(colors = c("red", "blue"),
+                   max.words = 100)
+
+
+```
+
+
+
+Now to perform additional analysis on another topic: Let's use Project gutenbergr which has public books and authors.
+(https://github.com/ropensci/gutenbergr)
+(https://bookdown.org/Maxine/tidy-text-mining/the-gutenbergr-package.html)
+
+
+```{r}
+devtools::install_github("ropensci/gutenbergr")
+```
+
+Package is loaded, can be used
+```{r}
+library(gutenbergr)
+
+# List of all authors in package: https://www.gutenberg.org/ebooks/
+# Lets use Charles Dickens: https://www.gutenberg.org/ebooks/author/37
+
+dickens_books <- gutenberg_works(author == 'Dickens, Charles')
+
+head(dickens_books)
+
+```
+
+Tidying the data
+```{r}
+tidy_dickens <- dickens_books %>%
+  gutenberg_download(meta_fields = 'title') %>%
+  group_by(gutenberg_id) %>%
+  mutate(linenumber = row_number()) %>%
+  ungroup() %>%
+  unnest_tokens(word, text)
+```
+
+
+
+Analyzing sentiment
+```{r}
+lines_per_index <- 80
+
+dickens_sentiment <- tidy_dickens %>%
+  inner_join(get_sentiments('bing'), by = 'word') %>%
+  count(title, index = linenumber %/% lines_per_index, sentiment) %>%
+  pivot_wider(names_from = sentiment, values_from = n, values_fill = 0) %>%
+  mutate(sentiment = positive - negative)
+
+
+
+dickens_sentiment %>%
+  ggplot(aes(index, sentiment, fill = title)) + 
+  geom_col(show.legend = FALSE) + 
+  facet_wrap(~title, ncol = 10, scales = "free_x")
+
+```
+
+
+Let's choose just one book and see how the 3 sentiment analyzers from before compare;
+```{r}
+# A Christmas Carol
+
+a_christmas_carol <- tidy_dickens %>% 
+  filter(title == "A Christmas Carol in Prose; Being a Ghost Story of Christmas")
+
+
+
+#-------------------------------------------------------------------------------
+
+carol_afinn <- a_christmas_carol %>%
+  inner_join(get_sentiments('afinn'), by = 'word') %>%
+  group_by(index = linenumber %/% lines_per_index) %>%
+  summarize(sentiment = sum(value)) %>%
+  mutate(method = "AFINN")
+
+carol_bing_and_nrc <- bind_rows(
+  a_christmas_carol %>%
+    inner_join(get_sentiments('bing'), by = 'word') %>%
+    mutate(method = "Bing et al."),
+  a_christmas_carol %>%
+    inner_join(get_sentiments('nrc') %>%
+                 filter(sentiment %in% c('positive','negative')), by = 'word') %>%
+    mutate(method = 'NRC')
+) %>%
+  count(method, index = linenumber %/% lines_per_index, sentiment) %>%
+  pivot_wider(names_from = sentiment, values_from = n, values_fill = 0) %>%
+  mutate(sentiment = positive - negative)
+
+bind_rows(carol_afinn, carol_bing_and_nrc) %>%
+  ggplot(aes(index, sentiment, fill = method)) + 
+  geom_col(show.legend = FALSE) + 
+  facet_wrap(~method, ncol = 1, scales = 'free_y')
+
+```
+
+Most common positive and negative words in our example
+```{r}
+christmas_carol_word_counts <- a_christmas_carol %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(word, sentiment, sort = TRUE) %>%
+  ungroup()
+
+christmas_carol_word_counts
+
+#-------------------------------------------------------------------------------
+# Visualized
+
+christmas_carol_word_counts %>%
+  group_by(sentiment) %>%
+  slice_max(n, n = 10) %>% 
+  ungroup() %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(n, word, fill = sentiment)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~sentiment, scales = "free_y") +
+  labs(x = "Contribution to sentiment",
+       y = NULL)
+
+
+
+
+```
+
+
+
