@@ -1,0 +1,56 @@
+---
+title: "607 Week 11: Recommendation System in Uber Eats"
+author: "Ron Balaban"
+date: "2023-11-11"
+output: html_document
+---
+
+
+### Your task is to analyze an existing recommender system that you find interesting.  You should:
+
+
+#### 1. Perform a Scenario Design analysis as described below.  Consider whether it makes sense for your selected recommender system to perform scenario design twice, once for the organization (e.g. Amazon.com) and once for the organization's customers.
+
+
+###### I chose to use the food delivery system Uber Eats, as it has its own built-in 'Recommended for you' panel. Users can search for restaraunts, categories of cuisune, and view and read through ratings from other customers. The app also has a panel called 'Picked for you', where it recommends the most popular items or items that are considered similar to popular items, or allow users to re-purchase a past order. The app also allows users to view what are the most popular local restaraunts, or filter by price, rating, and some high-level dietary restrictions.
+
+
+
+
+         1. Who are the target users? :
+
+###### Any user who has the app installed and wants to have food delivered to them, as they may not have time or energy to prepare a meal, would be a target user, which offers a wide target demographic and customer base.
+
+
+         2. What are their key goals? :
+
+###### The goal of having this recommendation system is to allow users to order from the restaurants they like, rate and provide feedback on items that can then be viewed by other users, as well as discover new restaraunts/products they may be interested in.
+
+
+         3. How can I help them accomplish their goals? :
+
+###### IThis app accomplishes its stated goal of allowing users to access a visual interface and look at all restaraunts based on their search parameters. This saves users time and peace of mind by allowing them to not have to Google every restaraunt near them, or call a phone number to see if a store was open, delivered to them, or had a certain product in stock. It also allows users to see dietary information on what was contained within the product itself, which could be useful if any allergies or preferences came into play.
+
+
+
+
+
+
+#### 2. Attempt to reverse engineer what you can about the site, from the site interface and any available information that you can find on the Internet or elsewhere.
+
+###### The app, when downloaded, first asks for location permissions to make sure the recommendation system operates within a local capacity.
+A user is then prompted to sign-in and provide a credit card, which will automatically be billed when a User places an order, to reduce the need for physical currency (An interesting topic on its own). It also allows users to favorite a store, utilize promotions (similar to coupons), view how Uber manages their data, and place an order.The app also stores information on past orders, favorite restaurants, and it aggregates and collates reviews from customers to offer Restaurants with their own rating. The app also has a categories section, where it allows users to purchase more than just food, but to also order Alcohol, Flowers, Groceries, Pet Supplies, Pharmaceutical Products, etc. There is also a rotating 'Featured' Page, which shows the stand-out and Top-Rated Restaurants in the area.
+
+
+
+
+#### 3. Include specific recommendations about how to improve the site's recommendation capabilities going forward. 
+
+###### I would allow users, that when the app was initially downloaded, to complete a survey to optionally fill out a survey regarding their eating preferences- if they perhaps only are intersted in vegetarian options, or if they have a specific diet or preference. The users could opt-out of this survey and always re-visit it at any point to update/revise their answers, which would then be used to optimize and enhance the recommendation system for restaraunts and food items within the app. This would serve as an enhanced, yet optional, version of the basic filters that the app already contains. Of course, this would require strict data confidentiality and masking for legal purposes. By allowing users to offer their own desires to the recommendation system, this would only serve to improve its efficiency and reduce unwanted noise.
+
+
+
+
+
+
+ 4. Create your report using an R Markdown file, and create a discussion thread with a link to the GitHub repo where your Markdown file notebook resides.  You are not expected to need to write code for this discussion assignment.
