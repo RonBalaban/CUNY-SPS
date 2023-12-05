@@ -1,0 +1,810 @@
+---
+title: "FALL 2023 Ron Balaban & Folorunsho Atanda Final Project- Poverty"
+author: "Ron Balaban"
+date: "2023-10-29"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+### Data Preparation
+
+```{r setup, echo=TRUE, results='hide', warning=FALSE, message=FALSE}
+```
+
+Posit Cloud: https://posit.cloud/spaces/449020/content/7089697
+
+
+
+### Research question 
+
+Has the overall wealth/poverty divide in the world changed for better or worse in the past ~30 years? How have certain factors affected the change?
+
+
+
+### Cases 
+
+Each case is an individual recording of a country, when the poverty report was done, along with the ratio/amount of people living below a certain standard. There are 4877 cases.
+
+
+### Data collection 
+
+The data was obtained from a public Kaggle dataset- https://www.kaggle.com/datasets/eishkaran/world-poverty-data
+
+
+### Type of study 
+
+This is an observational study.
+
+
+### Data Source 
+
+The data was obtained from a public Kaggle dataset- https://www.kaggle.com/datasets/eishkaran/world-poverty-data , which was sourced from the World Bank: https://www.worldbank.org/en/news/factsheet/2022/05/02/fact-sheet-an-adjustment-to-global-poverty-lines#2
+
+
+
+
+### Dependent Variable
+
+The response variables are headcount_ratio_international_povline, headcount_ratio_lower_mid_income_povline, headcount_ratio_upper_mid_income_povline, which are the ratio headlines.
+
+Additionally we looked at the totals, which are headcount_international_povline, headcount_lower_mid_income_povline, headcount_upper_mid_income_povline, along with the mean income
+
+
+
+
+### Independent Variable(s)
+
+country, year, reporting_level, survey_year, total population (which we computed)
+
+
+
+
+### Relevant summary statistics 
+
+**Provide summary statistics for each the variables. Also include appropriate visualizations related to your research question (e.g. scatter plot, boxplots, etc). This step requires the use of R, hence a code chunk is provided below. Insert more code chunks as needed.**
+
+#Possibly needed libraries
+```{r}
+library(dplyr)
+library(shiny)
+library(tidyverse)
+library(psych)
+```
+
+
+
+
+#Abstract & Introduction
+
+
+  For our final project, we decided to analyze historical data relating to global levels of poverty and income for the prior 30 years, which was collected by the World Bank in an effort by the United Nations to end poverty by 2030.
+
+ 	Our motivation for this analysis was to see how certain countries have changed in their poverty measures, and to see if there are any drivers for the changes in poverty lines, of which there are multiple, such as mean income and total population, and calculations methods. 
+ 	
+ 	This data, which ranges from 1967 to 2021, compares the values using a metric called Purchasing Power Parity (PPP), which is used to convert different currencies into a common, internationally comparable unit. This data accounts for both price differences, cost of living, and inflation across countries and regions. The poverty lines come in 3 levels- International Base Poverty, International Lower-Middle, and International Middle-Upper lines.
+ 	
+ 	We decided to use the country, year, and PPP version as our independent variables, while the headcounts and ratios of the poverty levels, along with the mean income and total population as our dependent variables. The data itself is rather tidy, in that it is segmented by country, year, reporting level, and PPP version and includes the totals and ratios of the population living in certain levels of poverty. 
+ 	
+ 	After our analysis, we found that on a world-level, poverty is shrinking and income rising, but at different rates for certain countries, and regions, and that this trend coincides with the relationships we found between poverty, population, and mean income. This analysis is important since by analyzing our findings, we can provide actionable insights and potential causes for reducing poverty world-wide, at least on a broader scale.
+
+
+
+
+
+
+#Data
+
+#Load data and make into frame
+```{r}
+poverty_raw <- read.csv(url("https://raw.githubusercontent.com/RonBalaban/CUNY-SPS-R/main/pip_dataset.csv"))
+poverty_frame <- as.data.frame(poverty_raw)
+
+# Adding total population based on ratios
+poverty_frame <- poverty_frame %>%
+  mutate(Total_Population =  headcount_upper_mid_income_povline / headcount_ratio_upper_mid_income_povline)
+
+head(poverty_frame)
+```
+
+
+
+#Simple summary statistics
+```{r}
+summary(poverty_frame)
+#-------------------------------------------------------------------------------
+# The variables we're most interested in
+describe(poverty_frame$headcount_ratio_international_povline)
+describe(poverty_frame$headcount_ratio_lower_mid_income_povline)
+describe(poverty_frame$headcount_ratio_upper_mid_income_povline)
+
+
+# Further summary
+summary(poverty_frame$headcount_ratio_international_povline)
+summary(poverty_frame$headcount_ratio_lower_mid_income_povline)
+summary(poverty_frame$headcount_ratio_upper_mid_income_povline)
+
+summary(poverty_frame$headcount_international_povline)
+summary(poverty_frame$headcount_lower_mid_income_povline)
+summary(poverty_frame$headcount_upper_mid_income_povline)
+
+summary(poverty_frame$mean)
+
+
+```
+
+
+
+
+#Let's break the dataset into 3 categories
+```{r}
+# Just countries
+country_frame <- poverty_frame %>%
+  filter(reporting_level == "national")
+
+#-------------------------------------------------------------------------------
+# Just regions
+region_frame <- poverty_frame %>%
+  filter(country != "High income countries", country != "World") %>%
+  filter(reporting_level == "")
+
+#-------------------------------------------------------------------------------
+# The world
+world_frame <- poverty_frame %>%
+  filter(country == "World")
+```
+
+
+
+
+#Exploratory data analysis
+
+
+#Poverty ratio changes
+```{r}
+# Messy, hard to read. Limitation in readability
+country_frame %>%
+  filter(ppp_version == "2011") %>% 
+  ggplot (aes(x = year, y =headcount_international_povline)) +
+  geom_line() +
+  labs(title = "Poverty in Countries") +
+  facet_wrap(~country, scales = "free_y")
+
+#-------------------------------------------------------------------------------
+#Just the 6 country regions
+region_frame %>%
+  ggplot (aes(x = year)) +
+  geom_line(aes(y = headcount_ratio_international_povline, color = "red")) + 
+  geom_line(aes(y = headcount_ratio_lower_mid_income_povline, color = "green")) + 
+  geom_line(aes(y = headcount_ratio_upper_mid_income_povline, color = "blue")) +
+  facet_wrap(~country+ppp_version, scales = "free_y") +
+  labs(title = "Poverty Ratio in Regions", x = "Year", y = "Headcount Ratio", color = 'Poverty Line') +
+  scale_color_manual(labels = c("High-Mid", "Mid-Low","Low"), values = c("blue", "green","red"))
+
+#-------------------------------------------------------------------------------
+# The whole world
+world_frame %>%
+  ggplot (aes(x = year)) +
+  geom_line(aes(y = headcount_ratio_international_povline, color = "red")) + 
+  geom_line(aes(y = headcount_ratio_lower_mid_income_povline, color = "green")) + 
+  geom_line(aes(y = headcount_ratio_upper_mid_income_povline, color = "blue")) +
+  facet_wrap(~ppp_version, scales = "free_y") +
+  labs(title = "Poverty Ratio in the World", x = "Year", y = "Headcount Ratio", color = 'Poverty Line') +
+  scale_color_manual(labels = c("High-Mid", "Mid-Low","Low"), values = c("blue", "green","red"))
+
+```
+
+
+
+#Total headcounts of those in poverty
+```{r}
+#-------------------------------------------------------------------------------
+# Just the 6 country regions
+region_frame %>%
+  ggplot (aes(x = year)) +
+  geom_line(aes(y = headcount_international_povline, color = "red")) + 
+  geom_line(aes(y = headcount_lower_mid_income_povline, color = "green")) + 
+  geom_line(aes(y = headcount_upper_mid_income_povline, color = "blue")) +
+  facet_wrap(~country+ppp_version, scales = "free_y") +
+  labs(title = "Poverty  in Regions", x = "Year", y = "Headcount", color = 'Poverty Line') +
+  scale_color_manual(labels = c("High-Mid", "Mid-Low","Low"), values = c("blue", "green","red"))
+#-------------------------------------------------------------------------------
+# The whole world
+world_frame %>%
+  ggplot (aes(x = year)) +
+  geom_line(aes(y = headcount_international_povline, color = "red")) + 
+  geom_line(aes(y = headcount_lower_mid_income_povline, color = "green")) + 
+  geom_line(aes(y = headcount_upper_mid_income_povline, color = "blue")) +
+  facet_wrap(~ppp_version) +
+  labs(title = "Poverty in the World", x = "Year", y = "Headcount", color = 'Poverty Line') +
+  scale_color_manual(labels = c("High-Mid", "Mid-Low","Low"), values = c("blue", "green","red"))
+
+```
+
+
+
+
+#Let's break up the region frame into each of the 6 regions
+```{r}
+reg_EastAsia_Pacific <- region_frame %>%
+  filter(country == "East Asia and Pacific")
+
+reg_Europe_CentralAsia <- region_frame %>%
+  filter(country == "Europe and Central Asia")
+
+reg_LatinAmerica_Caribbean <- region_frame %>%
+  filter(country == "Latin America and the Caribbean")
+
+reg_MidEast_NorthAfrica <- region_frame %>%
+  filter(country == "Middle East and North Africa")
+
+reg_South_Asia <- region_frame %>%
+  filter(country == "South Asia")
+
+reg_Subsaharan_Africa <- region_frame %>%
+  filter(country == "Sub-Saharan Africa")
+```
+
+
+
+#Inference
+
+
+#Linear regression to see how base poverty is affected by total population
+```{r}
+povlm_EastAsia_Pacific <- lm(headcount_international_povline ~ Total_Population, data = reg_EastAsia_Pacific) 
+summary(povlm_EastAsia_Pacific)
+# R-Squared = 0.9722
+cor(reg_EastAsia_Pacific$headcount_international_povline, reg_EastAsia_Pacific$Total_Population)
+# Correlation = -0.9859914. squared = 0.972179
+#-------------------------------------------------------------------------------
+povlm_Europe_CentralAsia <- lm(headcount_international_povline ~ Total_Population, data = reg_Europe_CentralAsia) 
+summary(povlm_Europe_CentralAsia)
+# R-Squared = 0.3917
+cor(reg_Europe_CentralAsia$headcount_international_povline, reg_Europe_CentralAsia$Total_Population) 
+# Correlation = -0.6258561. squared = 0.3916959
+#-------------------------------------------------------------------------------
+povlm_LatinAmerica_Caribbean<- lm(headcount_international_povline ~ Total_Population, data = reg_LatinAmerica_Caribbean) 
+summary(povlm_LatinAmerica_Caribbean)
+# R-Squared = 0.8577
+cor(reg_LatinAmerica_Caribbean$headcount_international_povline, reg_LatinAmerica_Caribbean$Total_Population) 
+# Correlation = -0.9261177. squared = 0.857694
+#-------------------------------------------------------------------------------
+povlm_MidEast_NorthAfrica <- lm(headcount_international_povline ~ Total_Population, data = reg_MidEast_NorthAfrica) 
+summary(povlm_MidEast_NorthAfrica)
+# R-Squared = 0.008386
+cor(reg_MidEast_NorthAfrica$headcount_international_povline, reg_MidEast_NorthAfrica$Total_Population) 
+# correlation = 0.09157423. squared = 0.008385839
+#-------------------------------------------------------------------------------
+povlm_South_Asia <- lm(headcount_international_povline ~ Total_Population, data = reg_South_Asia) 
+summary(povlm_South_Asia)
+# R-Squared = 0.7375
+cor(reg_South_Asia$headcount_international_povline, reg_South_Asia$Total_Population)
+# Correlation = -0.8587743. squared = 0.7374933
+#-------------------------------------------------------------------------------
+povlm_Subsaharan_Africa <- lm(headcount_international_povline ~ Total_Population, data = reg_Subsaharan_Africa) 
+summary(povlm_Subsaharan_Africa)
+# R-Squared = 0.5928
+cor(reg_Subsaharan_Africa$headcount_international_povline, reg_Subsaharan_Africa$Total_Population)
+# Correlation = 0.769925. squared = 0.5927845
+#-------------------------------------------------------------------------------
+# The R^2 for the full model accounts for approximately X% of the variance.
+# summary(povlm_EastAsia_Pacific)$r.squared can access the R-squared value directly
+```
+
+
+
+
+
+#Mapping the slopes of the total population vs poverty
+```{r}
+reg_EastAsia_Pacific %>% 
+  ggplot(aes(x = Total_Population, y = headcount_international_povline)) + 
+  geom_jitter() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Total Population vs Poverty (East Asia & Pacific)", x = "Total Population", y = "Poverty") +
+  annotate("text",x=2e7,y=9e8,label=(paste0("Slope==",coef(lm(reg_EastAsia_Pacific$headcount_international_povline~reg_EastAsia_Pacific$Total_Population))[2])),parse=TRUE) 
+
+# The further we increase population by 1 point, the headcount_international_povline decreases by 227.8 
+# If no population, there can be no poverty line, unless we don't start at 0. On the first day of 1990, poverty line was at 4.74 x 10e9
+# Line: y= mx + b = -2.278e2 * x + 4.743e9
+#-------------------------------------------------------------------------------
+
+reg_Europe_CentralAsia %>% 
+  ggplot(aes(x = Total_Population, y = headcount_international_povline)) + 
+  geom_jitter() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Total Population vs Poverty (Europe and Central Asia)", x = "Total Population", y = "Poverty") +
+  annotate("text",x=4.9e6,y=5e7,label=(paste0("Slope==",coef(lm(reg_Europe_CentralAsia$headcount_international_povline~reg_Europe_CentralAsia$Total_Population))[2])),parse=TRUE)
+
+# The further we increase population by 1 point, the headcount_international_povline decreases by 78.47 
+# If no population, there can be no poverty line, unless we don't start at 0. On the first day of 1990, poverty line was at 3.945 x 10e8
+# Line: y= mx + b = -7.847e+01 * x + 3.945e+08
+#-------------------------------------------------------------------------------
+
+reg_LatinAmerica_Caribbean %>% 
+  ggplot(aes(x = Total_Population, y = headcount_international_povline)) + 
+  geom_jitter() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Total Population vs Poverty (Latin America and the Caribbean)", x = "Total Population", y = "Poverty") +
+  annotate("text",x=4.9e6,y=5e7,label=(paste0("Slope==",coef(lm(reg_LatinAmerica_Caribbean$headcount_international_povline~reg_LatinAmerica_Caribbean$Total_Population))[2])),parse=TRUE)
+
+# The further we increase population by 1 point, the headcount_international_povline decreases by 28.35 
+# If no population, there can be no poverty line, unless we don't start at 0. On the first day of 1990, poverty line was at 2.058 x 10e8
+# Line: y= mx + b = -2.835e+01 * x + 2.058e+08
+#-------------------------------------------------------------------------------
+
+reg_MidEast_NorthAfrica %>% 
+  ggplot(aes(x = Total_Population, y = headcount_international_povline)) + 
+  geom_jitter() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Total Population vs Poverty (Middle East and North Africa)", x = "Total Population", y = "Poverty") +
+  annotate("text",x=3e6,y=2.5e7,label=(paste0("Slope==",coef(lm(reg_MidEast_NorthAfrica$headcount_international_povline~reg_MidEast_NorthAfrica$Total_Population))[2])),parse=TRUE)
+
+# The further we increase population by 1 point, the headcount_international_povline decreases by 1.049 
+# If no population, there can be no poverty line, unless we don't start at 0. On the first day of 1990, poverty line was at 9.395 x 10e6
+# Line: y= mx + b = 1.049e0 * x + 9.395e+06
+#-------------------------------------------------------------------------------
+
+reg_South_Asia %>% 
+  ggplot(aes(x = Total_Population, y = headcount_international_povline)) + 
+  geom_jitter() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Total Population vs Poverty (South Asia)", x = "Total Population", y = "Poverty") +
+  annotate("text",x=1.7e7,y=6e8,label=(paste0("Slope==",coef(lm(reg_South_Asia$headcount_international_povline~reg_South_Asia$Total_Population))[2])),parse=TRUE)
+
+# The further we increase population by 1 point, the headcount_international_povline decreases by 52.07 
+# If no population, there can be no poverty line, unless we don't start at 0. On the first day of 1990, poverty line was at 1.232 x 10e9
+# Line: y= mx + b = -5.207e+01 * x + 1.232e+09
+#-------------------------------------------------------------------------------
+
+reg_Subsaharan_Africa %>% 
+  ggplot(aes(x = Total_Population, y = headcount_international_povline)) + 
+  geom_jitter() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Total Population vs Poverty (Sub-Saharan Africa)", x = "Total Population", y = "Poverty") +
+  annotate("text",x=8e6,y=3e8,label=(paste0("Slope==",coef(lm(reg_Subsaharan_Africa$headcount_international_povline~reg_Subsaharan_Africa$Total_Population))[2])),parse=TRUE)
+
+# The further we increase population by 1 point, the headcount_international_povline increases by 14.59 
+# If no population, there can be no poverty line, unless we don't start at 0. On the first day of 1990, poverty line was at 2.561 x 10e8
+# Line: y= mx + b = 1.459e+01 * x + 2.561e+08
+#-------------------------------------------------------------------------------
+# Now for all 6 regions wrapped
+region_frame %>% 
+  ggplot(aes(x = Total_Population, y = headcount_international_povline)) + 
+  #geom_jitter() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  facet_wrap(~country, scales = "free") +
+  labs(title = "Total Population vs Poverty", x = "Total Population", y = "Poverty")
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#Mean Income in countries
+```{r}
+#-------------------------------------------------------------------------------
+# Just the 6 country regions
+region_frame %>%
+  ggplot(aes(x = year, y = mean)) +
+  geom_line(aes(color = "darkred")) +
+  facet_wrap(~country+ppp_version, scales = "free_y") +
+  labs(title = "Mean Income in Regions", x = "Year", y = "Mean Income") + 
+  theme(legend.position = "none")
+
+#-------------------------------------------------------------------------------
+# The whole world
+world_frame %>%
+  ggplot(aes(x = year, y = mean)) +
+  geom_line(aes(color = "darkred")) +
+  facet_wrap(~ppp_version, scales = "free_y") +
+  labs(title = "Mean Income in the World", x = "Year", y = "Mean Income") + 
+  theme(legend.position = "none")
+```
+
+
+
+
+#Linear regression to see how mean income is affected by total population
+```{r}
+meanlm_EastAsia_Pacific <- lm(mean ~ Total_Population, data = reg_EastAsia_Pacific) 
+summary(meanlm_EastAsia_Pacific)
+# R-Squared = 0.8812
+cor(reg_EastAsia_Pacific$mean, reg_EastAsia_Pacific$Total_Population)
+# Correlation = 0.9387421, squared = 0.8812367
+#-------------------------------------------------------------------------------
+meanlm_Europe_CentralAsia <- lm(mean ~ Total_Population, data = reg_Europe_CentralAsia) 
+summary(meanlm_Europe_CentralAsia)
+# R-Squared = 0.613
+cor(reg_Europe_CentralAsia$mean, reg_Europe_CentralAsia$Total_Population) 
+# Correlation = 0.7829322, squared = 0.6129829
+#-------------------------------------------------------------------------------
+meanlm_LatinAmerica_Caribbean<- lm(mean ~ Total_Population, data = reg_LatinAmerica_Caribbean) 
+summary(meanlm_LatinAmerica_Caribbean)
+# R-Squared = 0.8722
+cor(reg_LatinAmerica_Caribbean$mean, reg_LatinAmerica_Caribbean$Total_Population) 
+# Correlation = 0.9339402, squared = 0.8722443
+#-------------------------------------------------------------------------------
+meanlm_MidEast_NorthAfrica <- lm(mean ~ Total_Population, data = reg_MidEast_NorthAfrica) 
+summary(meanlm_MidEast_NorthAfrica)
+# R-Squared = 0.6883
+cor(reg_MidEast_NorthAfrica$mean, reg_MidEast_NorthAfrica$Total_Population) 
+# Correlation = 0.8296239, squared = 0.6882758
+#-------------------------------------------------------------------------------
+meanlm_South_Asia <- lm(mean ~ Total_Population, data = reg_South_Asia)
+summary(meanlm_South_Asia)
+# R-Squared = 0.8211
+cor(reg_South_Asia$mean, reg_South_Asia$Total_Population) 
+# Correlation = 0.9061418, squared = 0.8210929
+#-------------------------------------------------------------------------------
+meanlm_Subsaharan_Africa <- lm(mean ~ Total_Population, data = reg_Subsaharan_Africa) 
+summary(meanlm_Subsaharan_Africa)
+# R-Squared = 0.5725
+cor(reg_Subsaharan_Africa$mean, reg_Subsaharan_Africa$Total_Population)
+# Correlation = 0.7566695, squared = 0.5725488
+```
+
+
+
+
+
+
+#Mapping the slopes of the total population vs mean income
+```{r}
+reg_EastAsia_Pacific %>% 
+  ggplot(aes(x = Total_Population, y = mean)) + 
+  geom_jitter() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Total Population vs Mean Income (East Asia & Pacific)", x = "Total Population", y = "Mean Income") +
+  annotate("text",x=1.7e7,y=10,label=(paste0("Slope==",coef(lm(reg_EastAsia_Pacific$mean~reg_EastAsia_Pacific$Total_Population))[2])),parse=TRUE) 
+# The further we increase population by 1 point, the mean income changes by 2.079e-06
+# Line: y= mx + b = 2.079e-06 * x + -3.303e+01
+#-------------------------------------------------------------------------------
+
+reg_Europe_CentralAsia %>% 
+  ggplot(aes(x = Total_Population, y = mean)) + 
+  geom_jitter() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Total Population vs Mean Income (Europe and Central Asia)", x = "Total Population", y = "Mean Income") +
+  annotate("text",x=4.7e6,y=20,label=(paste0("Slope==",coef(lm(reg_Europe_CentralAsia$mean~reg_Europe_CentralAsia$Total_Population))[2])),parse=TRUE)
+
+# The further we increase population by 1 point, the mean income changes by 3.113e-05
+# Line: y= mx + b = 3.113e-05 * x + -1.341e+02
+#-------------------------------------------------------------------------------
+
+reg_LatinAmerica_Caribbean %>% 
+  ggplot(aes(x = Total_Population, y = mean)) + 
+  geom_jitter() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Total Population vs Mean Income (Latin America and the Caribbean)", x = "Total Population", y = "Mean Income") +
+  annotate("text",x=4.9e6,y=20,label=(paste0("Slope==",coef(lm(reg_LatinAmerica_Caribbean$mean~reg_LatinAmerica_Caribbean$Total_Population))[2])),parse=TRUE)
+
+# The further we increase population by 1 point, the mean income changes by 4.063e-06
+# Line: y= mx + b = 4.063e-06 * x + -8.778e+00
+#-------------------------------------------------------------------------------
+
+reg_MidEast_NorthAfrica %>% 
+  ggplot(aes(x = Total_Population, y = mean)) + 
+  geom_jitter() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Total Population vs Mean Income (Middle East and North Africa)", x = "Total Population", y = "Mean Income") +
+  annotate("text",x=3e6,y=12,label=(paste0("Slope==",coef(lm(reg_MidEast_NorthAfrica$mean~reg_MidEast_NorthAfrica$Total_Population))[2])),parse=TRUE)
+
+# The further we increase population by 1 point, the mean income changes by 2.423e-06
+# Line: y= mx + b = 2.423e-06 * x + 1.396e+00
+#-------------------------------------------------------------------------------
+
+reg_South_Asia %>% 
+  ggplot(aes(x = Total_Population, y = mean)) + 
+  geom_jitter() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Total Population vs Mean Income (South Asia)", x = "Total Population", y = "Mean Income") +
+  annotate("text",x=1.3e7,y=5,label=(paste0("Slope==",coef(lm(reg_South_Asia$mean~reg_South_Asia$Total_Population))[2])),parse=TRUE)
+
+# The further we increase population by 1 point, the mean income changes by 2.994e-07
+# Line: y= mx + b = 2.994e-07 * x + -1.112e+00
+#-------------------------------------------------------------------------------
+
+reg_Subsaharan_Africa %>% 
+  ggplot(aes(x = Total_Population, y = mean)) + 
+  geom_jitter() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Total Population vs Mean Income (Sub-Saharan Africa)", x = "Total Population", y = "Mean Income") +
+  annotate("text",x=6e6,y=4,label=(paste0("Slope==",coef(lm(reg_Subsaharan_Africa$mean~reg_Subsaharan_Africa$Total_Population))[2])),parse=TRUE)
+
+# The further we increase population by 1 point, the mean income changes by 2.035e-07
+# Line: y= mx + b = 2.035e-07 * x + 1.807e+00
+#-------------------------------------------------------------------------------
+# Now for all 6 regions wrapped
+region_frame %>% 
+  ggplot(aes(x = Total_Population, y = mean)) + 
+  geom_jitter() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  facet_wrap(~country, scales = "free") +
+  labs(title = "Total Population vs Mean Income", x = "Total Population", y = "Mean Income")
+
+# Overall, there is minimal effect of total population on mean income.
+```
+
+
+
+
+
+
+
+
+
+
+
+
+#Linear regression to see how mean income and poverty affect each other
+```{r}
+pov_mean_lm_EastAsia_Pacific <- lm(headcount_international_povline ~ mean, data = reg_EastAsia_Pacific) 
+summary(pov_mean_lm_EastAsia_Pacific)
+# R-Squared = 0.8653
+cor(reg_EastAsia_Pacific$headcount_international_povline, reg_EastAsia_Pacific$mean)
+# Correlation = -0.9302016. squared = 0.865275
+#-------------------------------------------------------------------------------
+pov_mean_lm_Europe_CentralAsia <- lm(headcount_international_povline ~ mean, data = reg_Europe_CentralAsia) 
+summary(pov_mean_lm_Europe_CentralAsia)
+# R-Squared = 0.6606
+cor(reg_Europe_CentralAsia$headcount_international_povline, reg_Europe_CentralAsia$mean) 
+# Correlation = -0.8127826. squared = 0.6606156
+#-------------------------------------------------------------------------------
+pov_mean_lm_LatinAmerica_Caribbean<- lm(headcount_international_povline ~ mean, data = reg_LatinAmerica_Caribbean) 
+summary(pov_mean_lm_LatinAmerica_Caribbean)
+# R-Squared = 0.8459
+cor(reg_LatinAmerica_Caribbean$headcount_international_povline, reg_LatinAmerica_Caribbean$mean) 
+# Correlation = -0.9197083. squared = 0.8458634
+#-------------------------------------------------------------------------------
+pov_mean_lm_MidEast_NorthAfrica <- lm(headcount_international_povline ~ mean, data = reg_MidEast_NorthAfrica) 
+summary(pov_mean_lm_MidEast_NorthAfrica)
+# R-Squared = 0.05295
+cor(reg_MidEast_NorthAfrica$headcount_international_povline, reg_MidEast_NorthAfrica$mean)
+# Correlation = -0.2301024. squared = 0.05294711
+#-------------------------------------------------------------------------------
+pov_mean_lm_South_Asia <- lm(headcount_international_povline ~ mean, data = reg_South_Asia) 
+summary(pov_mean_lm_South_Asia)
+# R-Squared = 0.8642
+cor(reg_South_Asia$headcount_international_povline, reg_South_Asia$mean)
+# Correlation = -0.9295995. squared = 0.8641553
+#-------------------------------------------------------------------------------
+pov_mean_lm_Subsaharan_Africa <- lm(headcount_international_povline ~ mean, data = reg_Subsaharan_Africa) 
+summary(pov_mean_lm_Subsaharan_Africa)
+# R-Squared = 0.05602
+cor(reg_Subsaharan_Africa$headcount_international_povline, reg_Subsaharan_Africa$mean)
+# Correlation = 0.236692. squared = 0.0560231
+```
+
+
+
+
+
+
+#Mapping poverty line vs mean income
+```{r}
+reg_EastAsia_Pacific %>% 
+  ggplot(aes(x = mean, y = headcount_international_povline)) + 
+  geom_jitter() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Poverty Line vs Mean Income (East Asia & Pacific)", x = "Mean Income", y = "Poverty Line") +
+  annotate("text",x=10,y=8e8,label=(paste0("Slope==",coef(lm(reg_EastAsia_Pacific$mean~reg_EastAsia_Pacific$headcount_international_povline))[2])),parse=TRUE) 
+# The further we increase mean income by 1, the poverty line changes by
+# Line: y= mx + b = 
+#-------------------------------------------------------------------------------
+
+reg_Europe_CentralAsia %>% 
+  ggplot(aes(x = mean, y = headcount_international_povline)) + 
+  geom_jitter() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Poverty Line vs Mean Income (Europe and Central Asia)", x = "Mean Income", y = "Poverty Line") +
+  annotate("text",x=18,y=4e7,label=(paste0("Slope==",coef(lm(reg_Europe_CentralAsia$mean~reg_Europe_CentralAsia$headcount_international_povline))[2])),parse=TRUE)
+
+# The further we increase mean income by 1, the poverty line changes by
+# Line: y= mx + b = 
+#-------------------------------------------------------------------------------
+
+reg_LatinAmerica_Caribbean %>% 
+  ggplot(aes(x = mean, y = headcount_international_povline)) + 
+  geom_jitter() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Poverty Line vs Mean Income (Latin America and the Caribbean)", x = "Mean Income", y = "Poverty Line") +
+  annotate("text",x=17,y=7e7,label=(paste0("Slope==",coef(lm(reg_LatinAmerica_Caribbean$mean~reg_LatinAmerica_Caribbean$headcount_international_povline))[2])),parse=TRUE)
+
+# The further we increase mean income by 1, the poverty line changes by
+# Line: y= mx + b = 
+#-------------------------------------------------------------------------------
+
+reg_MidEast_NorthAfrica %>% 
+  ggplot(aes(x = mean, y = headcount_international_povline)) + 
+  geom_jitter() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Poverty Line vs Mean Income (Middle East and North Africa)", x = "Mean Income", y = "Poverty Line") +
+  annotate("text",x=8,y=2.5e7,label=(paste0("Slope==",coef(lm(reg_MidEast_NorthAfrica$mean~reg_MidEast_NorthAfrica$headcount_international_povline))[2])),parse=TRUE)
+
+# The further we increase mean income by 1, the poverty line changes by
+# Line: y= mx + b = 
+#-------------------------------------------------------------------------------
+
+reg_South_Asia %>% 
+  ggplot(aes(x = mean, y = headcount_international_povline)) + 
+  geom_jitter() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Poverty Line vs Mean Income (South Asia)", x = "Mean Income", y = "Poverty Line") +
+  annotate("text",x=5,y=5e8,label=(paste0("Slope==",coef(lm(reg_South_Asia$mean~reg_South_Asia$headcount_international_povline))[2])),parse=TRUE)
+
+# The further we increase mean income by 1, the poverty line changes by
+# Line: y= mx + b = 
+#-------------------------------------------------------------------------------
+
+reg_Subsaharan_Africa %>% 
+  ggplot(aes(x = mean, y = headcount_international_povline)) + 
+  geom_jitter() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Poverty Line vs Mean Income (Sub-Saharan Africa)", x = "Mean Income", y = "Poverty Line") +
+  annotate("text",x=4,y=5e8,label=(paste0("Slope==",coef(lm(reg_Subsaharan_Africa$mean~reg_Subsaharan_Africa$headcount_international_povline))[2])),parse=TRUE)
+
+# The further we increase mean income by 1, the poverty line changes by
+# Line: y= mx + b = 
+#-------------------------------------------------------------------------------
+# Now for all 6 regions wrapped
+region_frame %>% 
+  ggplot(aes(x = mean, y = headcount_international_povline)) + 
+  geom_jitter() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  facet_wrap(~country, scales = "free") +
+  labs(title = "Poverty Line vs Mean Income", x = "Mean Income", y = "Poverty Line")
+
+# Overall, increasing the mean income does in fact lower the poverty line, with the exception of Sub-Saharan Africa.
+```
+
+
+
+
+
+
+
+
+
+#Shiny app for interactive mapping
+```{r}
+country_frame2 <- country_frame 
+
+colnames(country_frame2)[which(names(country_frame2) == "country")] <- "region"
+
+world_map <- map_data("world")
+country_frame2_join <- left_join(country_frame2, world_map, by = "region")
+
+#Using pivot longer to allow for type of poverty line to be selected
+country_frame2_join_long <- country_frame2_join %>% 
+  pivot_longer(
+    cols = c("headcount_ratio_international_povline", 
+             "headcount_ratio_lower_mid_income_povline",
+             "headcount_ratio_upper_mid_income_povline"),
+    names_to = "Poverty_Line",
+    values_to = "Ratio"
+  )
+
+#-------------------------------------------------------------------------------
+
+sorted_year <- unique(sort(country_frame2_join_long$year))
+
+ui <- fluidPage(
+  # shinybrowser::detect(),
+  # "Window size:",
+  # textOutput("size"),
+  titlePanel("Poverty By Country"),
+  sidebarLayout(
+    sidebarPanel(
+      radioButtons("ppp_version",
+                  "Select Polling Version:",
+                  choices = unique(country_frame2_join_long$ppp_version),
+                  selected = unique(country_frame2_join_long$ppp_version)[1]),
+      radioButtons("poverty_line",
+                  "Select Poverty Line Ratio:",
+                  choices = unique(country_frame2_join_long$Poverty_Line),
+                  selected = unique(country_frame2_join_long$Poverty_Line)[1]),
+      selectInput("year",
+                  "Select Year:",
+                  choices = sorted_year,
+                  selected = sorted_year[1]),
+    ),
+    mainPanel(
+      plotOutput("worldMap")
+    )
+  )
+)
+
+server <- function(input, output, session){
+  # output$size <- renderText({
+  #   paste(get_width(), "x", get_height())
+  # })
+  
+  filteredCountry <- reactive({
+    filter(country_frame2_join_long, 
+           year == input$year & ppp_version == input$ppp_version & Poverty_Line == input$poverty_line)
+  })
+  
+  output$worldMap <- renderPlot({
+    country_label_data <- filteredCountry() %>%
+      group_by(region) %>%
+      summarise(long = mean(long), lat = mean(lat))
+    
+    ggplot (filteredCountry(), aes(long, lat)) +
+      geom_polygon(aes(fill = Ratio, group = group), color = "white") +
+      geom_text(aes(label = region), data = country_label_data,  size = 3, hjust = 0.5) +
+      scale_fill_viridis_c(option = "C", name = "Poverty Ratio") +
+      labs(fill = "Poverty Ratio")
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+
+
+
+
+
+
+# Gini coefficient for inequality
+```{r}
+# Messy, difficult to read. Limited viability
+country_frame %>%
+  filter(ppp_version == "2017") %>% 
+  ggplot (aes(x = year, y =gini)) +
+  geom_line() +
+  labs(title = "Gini Coefficient of Inequality") +
+  facet_wrap(~country, scales = "free_y")
+```
+
+
+
+#Conclusion
+
+Our findings have shown that overall, poverty is shrinking worldwide, but at different rates in each country and region. In recent years, we can actually see an increase in the number of people living in poverty in the Middle East & North Africa, and Sub-Saharan Africa. 
+
+The growth in total population has had a minimal effect on poverty, which we believe is shrinking due to external factors unavailable in the dataset, such as advances in medical technology and food production. 
+
+Mean income has risen at a minimal rate since 1990, and has virtually no change when total population grows. Interestingly enough, this holds true for the relationship between mean income and baseline poverty, but this is likely an effect, not the cause. 
+
+
+Unfortunately, this data is rather surface-level and does not allow insight into multidimensional poverty factors such as access to clean water, electricity, education, shelter, etc. This analysis only skims the surface of the complex issue that is worldwide poverty, and does not include the full breadth of analysis as not all of the population can be realistically surveyed. 
+
+
+
+
+
+#References/Resources
+
+https://github.com/owid/poverty-data/blob/main/datasets/pip_codebook.csv
+
+https://www.worldbank.org/en/news/factsheet/2022/05/02/fact-sheet-an-adjustment-to-global-poverty-lines#2
+
+https://ourworldindata.org/from-1-90-to-2-15-a-day-the-updated-international-poverty-line
+
+https://www.worldvision.org/sponsorship-news-stories/global-poverty-facts#:~:text=According%20to%20the%20World%20Bank,in%20poverty%20as%20of%202021.
+https://www.worldbank.org/en/news/feature/2013/06/17/high-frequency-data-collection-new-breed-household-surveys
+
+https://blogs.worldbank.org/developmenttalk/half-global-population-lives-less-us685-person-day
+
+https://www.worldbank.org/en/news/factsheet/2022/05/02/fact-sheet-an-adjustment-to-global-poverty-lines
+
+https://blogs.worldbank.org/opendata/march-2023-global-poverty-update-world-bank-challenge-estimating-poverty-pandemic
+https://ourworldindata.org/sdgs/no-poverty#1.1
+
+https://blogs.worldbank.org/opendata/updating-world-banks-societal-poverty-line-2017-purchasing-power-parities
+
+
+
