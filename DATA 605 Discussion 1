@@ -1,0 +1,62 @@
+---
+title: "Week 1 Discussion"
+author: "Ron Balaban"
+date: "2024-02-02"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+A three-digit number has two properties. The tens-digit and the ones-digit add up to 5. If the number is written with the digits in the reverse order, and then subtracted from the original number, the result is 792. Use a system of equations to find all of the 3-digit numbers with these properties.
+
+
+Define an unknown 3-digit number:  abc
+a = hundreds place
+b = tens place
+c = ones place
+
+
+Represent each as a single digit with the corresponding multiplier (so if a = 3, 100a  = 300)
+abc;
+100a + 10b + 1c
+
+
+We're given 2 properties;
+1) b + c = 5  -> b = 5 - c
+2) abc - cba = 792
+
+
+Reverse order
+cba;
+100c + 10b + 1a
+
+
+
+abc - cba = 792
+(100a + 10b + 1c) - (100c + 10b + 1a) = 792
+100a + 10b + 1c - 100c - 10b - 1a = 792
+99a  - 99c  = 792
+a - c = 8
+
+
+
+We're left with the following sets;
+b + c = 5
+a = 8 + c
+
+
+
+Digits can only range from 0 - 9, this narrows a to be values of 8 and 9 (therefore c can only have values of 0 and 1)
+Therefore b can have values of 5 or 4
+
+
+The solutions are therefore;
+a = 8, b = 5, c = 0
+a = 9, b = 4, c = 1
+
+
+850 and 641
+
+
+
+
