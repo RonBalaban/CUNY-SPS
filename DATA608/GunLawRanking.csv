@@ -1,4 +1,4 @@
-Gun_Law_Ranking,StateName,State,Grade,Gun Death Rate (Ranked),Gun Death Rate (per 100K)
+Gun_Law_Ranked,State_Name,State,Grade,Gun_Death_Rate_Ranked,Gun_Death_Rate_100k
 1,California,CA,A,44,8.7
 2,New Jersey,NJ,A,45,7
 3,Connecticut,CT,A,47,5
