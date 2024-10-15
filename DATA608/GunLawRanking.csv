@@ -1,0 +1,51 @@
+Gun_Law_Ranking,StateName,State,Grade,Gun Death Rate (Ranked),Gun Death Rate (per 100K)
+1,California,CA,A,44,8.7
+2,New Jersey,NJ,A,45,7
+3,Connecticut,CT,A,47,5
+4,Illinois,IL,A-,19,17.3
+5,New York,NY,A-,48,4.5
+6,Hawaii,HI,A-,32,14.4
+7,Massachusetts,MA,A-,35,13.6
+8,Maryland,MD,A-,49,3.7
+9,Washington,WA,A-,46,5.3
+10,Colorado,CO,A-,30,14.6
+11,Oregon,OR,A-,36,12.6
+12,Rhode Island,RI,B+,39,12.1
+13,Delaware,DE,B+,50,3.1
+14,Virginia,VA,B+,28,15.1
+15,Minnesota,MN,B,43,9.7
+16,Pennsylvania,PA,B,29,14.8
+17,Michigan,MI,B-,27,15.1
+18,Vermont,VT,B-,15,19.3
+19,Nevada,NV,B-,38,12.2
+20,New Mexico,NM,C+,3,27.5
+21,Wisconsin,WI,C,33,14.1
+22,North Carolina,NC,C-,37,12.3
+23,Nebraska,NE,C-,20,17.1
+24,Florida,FL,D+,31,14.4
+25,Ohio,OH,D-,17,17.6
+26,Indiana,IN,D-,40,12
+27,Maine,ME,D-,42,10.3
+28,New Hampshire,NH,D-,26,15.7
+29,South Carolina,SC,D-,9,21.3
+30,Utah,UT,F,4,25.9
+31,Texas,TX,F,7,22.7
+32,Louisiana,LA,F,12,20.5
+33,Georgia,GA,F,8,22.1
+34,Iowa,IA,F,14,20
+35,West Virginia,WV,F,18,17.5
+36,North Dakota,ND,F,41,11.3
+37,Oklahoma,OK,F,21,17
+38,Alabama,AL,F,16,18.9
+39,Tennessee,TN,F,2,28.2
+40,Alaska,AK,F,1,29.7
+41,Arizona,AZ,F,6,24.4
+42,Kansas,KS,F,5,24.5
+43,South Dakota,SD,F,22,16.5
+44,Mississippi,MS,F,13,20.1
+45,Montana,MT,F,24,16.1
+46,Idaho,ID,F,10,20.9
+47,Kentucky,KY,F,25,15.7
+48,Arkansas,AR,F,34,14
+49,Missouri,MO,F,23,16.4
+50,Wyoming,WY,F,11,20.6
