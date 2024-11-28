@@ -1,0 +1,154 @@
+State,Age_Group,Number_Poverty,MOE_Number,Percent_Poverty,MOE_Percent
+Alabama,Under 18 years,125,26,11.3,2.3
+Alabama,18 to 64 years,322,39,10.9,1.3
+Alabama,65 years and older,126,19,13.6,1.8
+Alaska,Under 18 years,16,3,8.9,1.9
+Alaska,18 to 64 years,39,5,9.1,1.2
+Alaska,65 years and older,13,3,12.9,2.6
+Arizona,Under 18 years,207,39,12.9,2.4
+Arizona,18 to 64 years,454,52,10.6,1.2
+Arizona,65 years and older,145,24,10.6,1.8
+Arkansas,Under 18 years,82,12,11.9,1.7
+Arkansas,18 to 64 years,201,21,11.3,1.1
+Arkansas,65 years and older,71,7,13.3,1.4
+California,Under 18 years,1220,78,14.4,0.9
+California,18 to 64 years,3613,161,15.0,0.7
+California,65 years and older,1135,78,18.2,1.1
+Colorado,Under 18 years,82,18,6.6,1.5
+Colorado,18 to 64 years,341,53,9.5,1.5
+Colorado,65 years and older,122,21,12.8,2.1
+Connecticut,Under 18 years,58,15,7.9,2.1
+Connecticut,18 to 64 years,197,38,9.1,1.7
+Connecticut,65 years and older,67,17,9.5,2.3
+Delaware,Under 18 years,18,5,8.4,2.3
+Delaware,18 to 64 years,51,8,8.6,1.4
+Delaware,65 years and older,18,4,8.3,1.7
+District of Columbia,Under 18 years,20,4,15.5,3.4
+District of Columbia,18 to 64 years,54,6,12.3,1.4
+District of Columbia,65 years and older,20,3,21.1,2.6
+Florida,Under 18 years,621,65,14.2,1.5
+Florida,18 to 64 years,1769,112,13.5,0.9
+Florida,65 years and older,716,64,15.0,1.3
+Georgia,Under 18 years,243,43,9.7,1.7
+Georgia,18 to 64 years,773,94,11.6,1.4
+Georgia,65 years and older,245,35,14.4,2.2
+Hawaii,Under 18 years,29,7,9.5,2.3
+Hawaii,18 to 64 years,83,10,10.0,1.2
+Hawaii,65 years and older,35,6,11.9,1.9
+Idaho,Under 18 years,22,6,4.8,1.2
+Idaho,18 to 64 years,79,10,6.9,0.8
+Idaho,65 years and older,30,6,9.2,1.7
+Illinois,Under 18 years,242,42,8.9,1.5
+Illinois,18 to 64 years,662,71,8.7,0.9
+Illinois,65 years and older,261,34,12.4,1.6
+Indiana,Under 18 years,109,21,6.9,1.3
+Indiana,18 to 64 years,326,41,8.0,1.0
+Indiana,65 years and older,113,23,9.8,1.9
+Iowa,Under 18 years,33,9,4.6,1.3
+Iowa,18 to 64 years,139,26,7.5,1.4
+Iowa,65 years and older,35,11,5.7,1.9
+Kansas,Under 18 years,55,16,8.0,2.3
+Kansas,18 to 64 years,122,17,7.3,1.0
+Kansas,65 years and older,53,13,10.3,2.4
+Kentucky,Under 18 years,108,25,10.9,2.5
+Kentucky,18 to 64 years,307,52,11.7,1.9
+Kentucky,65 years and older,114,19,13.5,2.5
+Louisiana,Under 18 years,136,21,12.9,2.0
+Louisiana,18 to 64 years,386,27,14.2,1.0
+Louisiana,65 years and older,123,23,16.7,2.5
+Maine,Under 18 years,11,4,4.7,1.8
+Maine,18 to 64 years,44,11,5.5,1.3
+Maine,65 years and older,26,7,8.0,2.0
+Maryland,Under 18 years,154,33,11.4,2.5
+Maryland,18 to 64 years,381,55,10.1,1.5
+Maryland,65 years and older,110,22,10.4,2.1
+Massachusetts,Under 18 years,123,23,9.0,1.6
+Massachusetts,18 to 64 years,378,40,8.8,0.9
+Massachusetts,65 years and older,165,24,13.4,1.8
+Michigan,Under 18 years,159,33,7.5,1.6
+Michigan,18 to 64 years,568,78,9.5,1.3
+Michigan,65 years and older,181,37,9.8,1.9
+Minnesota,Under 18 years,61,17,4.7,1.3
+Minnesota,18 to 64 years,195,31,5.8,0.9
+Minnesota,65 years and older,91,18,9.2,1.7
+Mississippi,Under 18 years,84,13,12.4,1.9
+Mississippi,18 to 64 years,238,25,13.7,1.4
+Mississippi,65 years and older,69,12,13.9,2.2
+Missouri,Under 18 years,131,29,9.5,2.2
+Missouri,18 to 64 years,324,57,9.0,1.4
+Missouri,65 years and older,106,23,10.0,2.5
+Montana,Under 18 years,16,5,6.6,2.0
+Montana,18 to 64 years,58,7,8.9,1.1
+Montana,65 years and older,24,4,10.5,1.7
+Nebraska,Under 18 years,17,7,3.6,1.5
+Nebraska,18 to 64 years,78,14,6.9,1.2
+Nebraska,65 years and older,36,11,10.3,2.9
+Nevada,Under 18 years,89,20,12.8,2.8
+Nevada,18 to 64 years,244,36,12.6,1.8
+Nevada,65 years and older,68,12,12.4,2.3
+New Hampshire,Under 18 years,15,5,6.1,2.1
+New Hampshire,18 to 64 years,53,10,6.5,1.2
+New Hampshire,65 years and older,33,6,11.0,2.0
+New Jersey,Under 18 years,207,43,10.3,2.1
+New Jersey,18 to 64 years,534,66,9.6,1.2
+New Jersey,65 years and older,211,29,12.9,1.7
+New Mexico,Under 18 years,41,8,8.9,1.7
+New Mexico,18 to 64 years,135,19,11.1,1.4
+New Mexico,65 years and older,54,8,12.9,1.9
+New York,Under 18 years,543,59,13.6,1.5
+New York,18 to 64 years,1429,97,12.0,0.8
+New York,65 years and older,529,50,15.1,1.3
+North Carolina,Under 18 years,278,51,11.9,2.2
+North Carolina,18 to 64 years,695,73,10.7,1.1
+North Carolina,65 years and older,251,26,13.4,1.5
+North Dakota,Under 18 years,13,3,6.9,1.6
+North Dakota,18 to 64 years,34,5,7.3,1.0
+North Dakota,65 years and older,11,2,9.1,1.5
+Ohio,Under 18 years,193,40,7.3,1.5
+Ohio,18 to 64 years,549,62,8.1,0.9
+Ohio,65 years and older,217,40,9.7,1.7
+Oklahoma,Under 18 years,95,17,9.8,1.8
+Oklahoma,18 to 64 years,233,29,9.9,1.3
+Oklahoma,65 years and older,83,21,13.4,2.8
+Oregon,Under 18 years,65,15,7.8,1.8
+Oregon,18 to 64 years,225,32,8.8,1.2
+Oregon,65 years and older,66,18,7.9,2.1
+Pennsylvania,Under 18 years,247,42,9.3,1.6
+Pennsylvania,18 to 64 years,649,70,8.5,0.9
+Pennsylvania,65 years and older,260,39,10.7,1.6
+Rhode Island,Under 18 years,12,5,5.7,2.2
+Rhode Island,18 to 64 years,44,10,6.6,1.5
+Rhode Island,65 years and older,17,4,8.4,1.8
+South Carolina,Under 18 years,102,17,9.1,1.5
+South Carolina,18 to 64 years,320,36,10.2,1.1
+South Carolina,65 years and older,109,20,10.8,1.7
+South Dakota,Under 18 years,9,4,4.3,1.8
+South Dakota,18 to 64 years,27,7,5.3,1.3
+South Dakota,65 years and older,18,3,11.6,2.1
+Tennessee,Under 18 years,94,22,6.1,1.4
+Tennessee,18 to 64 years,342,53,8.2,1.3
+Tennessee,65 years and older,176,24,13.4,1.9
+Texas,Under 18 years,928,80,12.4,1.0
+Texas,18 to 64 years,2193,120,12.0,0.7
+Texas,65 years and older,636,54,15.4,1.2
+Utah,Under 18 years,43,11,4.6,1.1
+Utah,18 to 64 years,140,20,7.0,1.0
+Utah,65 years and older,45,8,11.0,1.9
+Vermont,Under 18 years,7,2,5.7,1.9
+Vermont,18 to 64 years,30,5,7.9,1.3
+Vermont,65 years and older,15,3,10.7,2.1
+Virginia,Under 18 years,188,38,10.0,2.0
+Virginia,18 to 64 years,451,50,8.5,0.9
+Virginia,65 years and older,184,32,13.3,2.0
+Washington,Under 18 years,133,24,7.9,1.4
+Washington,18 to 64 years,429,49,8.8,1.0
+Washington,65 years and older,146,29,12.1,2.4
+West Virginia,Under 18 years,33,7,9.2,1.8
+West Virginia,18 to 64 years,122,17,11.8,1.6
+West Virginia,65 years and older,53,8,14.5,1.8
+Wisconsin,Under 18 years,65,18,5.2,1.4
+Wisconsin,18 to 64 years,239,36,6.8,1.0
+Wisconsin,65 years and older,82,23,7.8,2.0
+Wyoming,Under 18 years,8,2,5.7,1.3
+Wyoming,18 to 64 years,24,4,7.3,1.2
+Wyoming,65 years and older,10,3,9.4,2.9
