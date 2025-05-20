@@ -37,7 +37,7 @@ library(tidyverse)
 -----------------------------------------------------------------SAVE/LOAD PROJECT ENVIRONMENT DATA----------------------------------------------------------
 -------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-(Optional) Run this code with the environment file in chosen directory, in order to save time and not run functions/data manipulations/API calls
+(Optional) Run this code with the environment file in the chosen directory, to save time and not run functions/data manipulations/API calls
 ```{r}
 # Save environment
 #save.image(file = "./project_environment2.RData")
@@ -46,7 +46,7 @@ library(tidyverse)
 #load("./project_environment2.RData")
 
 ################################################################################
-# Save data for shiny app project
+# Save data for the shiny app project
 #saveRDS(ndc_data, file = "./ndc_data.rds")
 
 #saveRDS(all_drug_names_ndcs, file = "./all_drug_names_ndcs.rds")
@@ -61,7 +61,7 @@ library(tidyverse)
 -----------------------------------------------------------------------------------------------------------------------------------------------------------
 -----------------------------------------------------------------------------------------------------------------------------------------------------------
 
-(Working) Scrape all tables, and combines them into tibble for a drug
+(Working) Scrape all tables and combine them into a tibble for a drug
 ```{r}
 # Function to scrape data for a given drug
 scrape_clincalc = function(drug){
@@ -84,7 +84,7 @@ scrape_clincalc = function(drug){
   Therapy_Costs = cost_list[[6]]  
   
   
-  # Ensure each table has column names, assign them manually if missing
+  # Ensure each table has column names, and assign them manually if missing
   if (is.null(colnames(Prescriptions_Patients))) {
     colnames(Prescriptions_Patients) <- c("Year", "Total_Prescriptions", "Patients")
   }
@@ -117,7 +117,7 @@ scrape_clincalc = function(drug){
     mutate(Drug_Name = drug) %>%
     select(Drug_Name, everything())  
   
-  # Close session after scraping
+  # Close the session after scraping
   drugs_data$session$close()
   
   # Return the combined tibble with the drug name
@@ -131,7 +131,7 @@ scrape_clincalc = function(drug){
 -----------------------------------------------------------------------------------------------------------------------------------------------------------
 
 
-(Working) Get list of all drugs, call the above function, and store the data 
+(Working) Get the list of all drugs, call the above function, and store the data 
 ```{r}
 scrape_drug_names = function() {
   url = "https://clincalc.com/DrugStats/"
@@ -171,7 +171,7 @@ all_drug_names <- all_drug_names %>%
 
 (Working) Run the Scrape function on all the drugs, and save the output
 ```{r}
-# Initialize empty tibble to hold drug data
+# Initialize an empty tibble to hold drug data
 Total_Drug_Data <- tibble()
 
 for(drug in all_drug_names$Drug_Name) {
@@ -240,10 +240,10 @@ all_drug_names = all_drug_names %>%
 ```
 
 
-(Working) Break out the Brand and Generic names separately for later if needed
+(Working) Break out the Brand and Generic names separately for later, if needed
 ```{r}
 all_brand_names <- all_drug_names %>%
-  # Separate the Brand_Names by comma and create a row for each brand name
+  # Separate the Brand_Names by a comma and create a row for each brand name
   separate_rows(Brand_Names, sep = ",") %>%
   # Remove any leading/trailing whitespace from the brand names
   mutate(Brand_Name = str_trim(Brand_Names)) %>%
@@ -251,7 +251,7 @@ all_brand_names <- all_drug_names %>%
 
 
 all_generic_names <- all_drug_names %>%
-  # Separate the Brand_Names by comma and create a row for each brand name
+  # Separate the Brand_Names by a comma and create a row for each brand name
   separate_rows(Generic_Names, sep = ",") %>%
   # Remove any leading/trailing whitespace from the brand names
   mutate(Generic_Name = str_trim(Generic_Names)) %>%
@@ -265,7 +265,7 @@ all_generic_names <- all_drug_names %>%
 (Working) Avoid Drug name collision/duplication - Optimized
 ```{r}
 Check_Drug_Duplicates_Optimized <- function(all_drug_names) {
-  # This functions looks at which drugs have overlapping brand/generic names, and calls them out. 
+  # This function looks at which drugs have overlapping brand/generic names, and calls them out. 
   # For example, Fluticasone vs Fluticasone; Salmeterol or Metformin vs Metformin; Sitagliptin
   
   # Expand names
@@ -292,7 +292,7 @@ Check_Drug_Duplicates_Optimized <- function(all_drug_names) {
     inner_join(exploded_names, by = "all_names") %>%
     filter(Drug_Name.x < Drug_Name.y)  # avoid A-B and B-A both showing
   
-  # Summarize to list shared names
+  # Summarize to list of shared names
   potential_duplicates <- duplicates %>%
     group_by(Drug_1_Name = Drug_Name.x, Drug_2_Name = Drug_Name.y) %>%
     summarise(
@@ -304,11 +304,11 @@ Check_Drug_Duplicates_Optimized <- function(all_drug_names) {
   return(potential_duplicates)
 }
 
-# See drugs with re-occurring names in other drugs
+# See drugs with recurring names in other drugs
 potential_duplicates <- Check_Drug_Duplicates_Optimized(all_drug_names)
 ```
 
-This is useful for if I decide to aggregate drugs together, but I'll keep them separate for now- I want to preserve the granularity of each drug, even if there might be some overlap. For example, Fluticasone vs Fluticasone; Salmeterol or Metformin vs Metformin; Sitagliptin
+This is useful if I decide to aggregate drugs together, but I'll keep them separate for now- I want to preserve the granularity of each drug, even if there might be some overlap. For example, Fluticasone vs Fluticasone; Salmeterol or Metformin vs Metformin; Sitagliptin
 
 
 -------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -329,21 +329,21 @@ API Functionality:
 https://open.fda.gov/apis/drug/ndc/how-to-use-the-endpoint/
 
 
-Load in Product information all the different drugs and possible NDC's
+Load the Product information for all the different drugs and possible NDCs
 ```{r}
 # Set file path
-file_path_product <- "C:/Users/Ron/OneDrive/Desktop/Personal - Important/Grad School Stuff/CUNY SPS/DATA 698 Spring 2025/Resources/product.xlsx"  
+file_path_product <- "./product.xlsx"  
 
 # Load in data
 ndc_data <- read_excel(file_path_product)
 ```
 
 
-(Working) Pull all NDC's for a drug by brand, generic, proprietary name V1
+(Working) Pull all NDCs for a drug by brand, generic, proprietary name V1
 ```{r}
 Pull_NDC <- function(drug_name, all_drug_names, ndc_data) {
-  # Pull all NDC's for a drug by brand, generic, proprietary name V1. 
-  # Pull_NDC is simpler and faster for ad-hoc quick searching if we know exactly the search term (e.g., "Atorvastatin calcium").
+  # Pull all NDCs for a drug by brand, generic, proprietary name V1. 
+  # Pull_NDC is simpler and faster for ad-hoc, quick searching if we know exactly the search term (e.g., "Atorvastatin calcium").
   
   # Lowercase and clean input drug name
   drug_name_lower <- tolower(str_trim(drug_name))
@@ -367,10 +367,10 @@ Pull_NDC <- function(drug_name, all_drug_names, ndc_data) {
   ndc_data_clean <- ndc_data %>%
     mutate(PROPRIETARYNAME = tolower(PROPRIETARYNAME),  #Brand names
           NONPROPRIETARYNAME = tolower(NONPROPRIETARYNAME), #Generic names
-          SUBSTANCENAME = tolower(SUBSTANCENAME) #Ingredient name- useful for combination drugs (i.e. - AMLODIPINE BESYLATE; ATORVASTATIN CALCIUM TRIHYDRATE)
+          SUBSTANCENAME = tolower(SUBSTANCENAME) #Ingredient name- useful for combination drugs (i.e., AMLODIPINE BESYLATE; ATORVASTATIN CALCIUM TRIHYDRATE)
           )
   
-  # Filter using combined exactish pattern
+  # Filter using a combined exactish pattern
   matching_rows <- ndc_data_clean %>%
     filter(
       grepl(full_pattern, PROPRIETARYNAME) |
@@ -390,11 +390,11 @@ Pull_NDC <- function(drug_name, all_drug_names, ndc_data) {
 ```
 
 
-(Working) Pull all NDC's for a drug by brand, generic, proprietary name V2
+(Working) Pull all NDCs for a drug by brand, generic, proprietary name V2
 ```{r}
 Get_NDCs_For_Drug <- function(drug_name, brand_data, generic_data, ndc_data) {
-  # Pull all NDC's for a drug by brand, generic, proprietary name V2
-  # Get_NDCs_For_Drug is smarter and safer if we want automated, comprehensive pulling — based on the real brand/generic associations of a drug.
+  # Pull all NDCs for a drug by brand, generic, proprietary name V2
+  # Get_NDCs_For_Drug is smarter and safer if we want automated, comprehensive pulling, based on the real brand/generic associations of a drug.
   
   # Convert to lower case for matching
   ndc_data_clean <- ndc_data %>%
@@ -425,7 +425,7 @@ Pull_NDC (v1) is simpler and faster for ad-hoc quick searching if we know exactl
 
 Get_NDCs_For_Drug (V2)is smarter and safer if we want automated, comprehensive pulling — based on the real brand/generic associations of a drug.
 
-This function is later redefined at the bottom for when specifying the brand and generic NDC's, but this version works as needed for now
+This function is later redefined at the bottom for when specifying the brand and generic NDCs, but this version works as needed for now
 
 -------------------------------------------------------------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -433,7 +433,7 @@ This function is later redefined at the bottom for when specifying the brand and
 
 (Working) Run the Get_NDCs_For_Drug function for all drugs in all_drug_names. Exact Match.
 ```{r}
-# Add empty NDCs column
+# Add an empty NDCs column
 all_drug_names <- all_drug_names %>%
   mutate(NDCs = vector("list", n()))
 
@@ -484,7 +484,7 @@ Get_NDCs_For_Drug_Fuzzy <- function(drug_name, brand_data, generic_data, ndc_dat
     str_trim() %>%
     tolower() %>%
     str_replace_all(";", "and") %>%  
-    # replace multiple spaces with single space
+    # replace multiple spaces with a single space
     str_replace_all("\\s+", " ")      
 
   # Also include the Drug_Name itself
@@ -514,7 +514,7 @@ Get_NDCs_For_Drug_Fuzzy <- function(drug_name, brand_data, generic_data, ndc_dat
 }
 
 ################################################################################
-# Add empty NDCs column
+# Add an empty NDCs column
 all_drug_names_fuzzy <- all_drug_names %>%
   mutate(NDCs = vector("list", n()))
 
@@ -537,7 +537,7 @@ all_drug_names_fuzzy <- all_drug_names %>%
 ```
 
 
-The fuzzy match gives us this many NDC's for the previously empty drugs:
+The fuzzy match gives us this many NDCs for the previously empty drugs:
 71 for Amlodipine; Benazepril
 19 for Albuterol; Ipratropium
 360 for Dextroamphetamine; Dextroamphetamine Saccharate; Amphetamine; Amphetamine Aspartate
@@ -603,7 +603,7 @@ ggplot(plot_data, aes(x = Match_Type, y = Number_NDCs, fill = Match_Type)) +
 
 There are far too many NDC matches for those drugs that did have an exact match (when Number_NDCs_exact != 0). I'll just look at those drugs that didn't have exact matches, but did have fuzzy matches.
 ```{r}
-# drugs where exact match found 0 NDCs but fuzzy match found some
+# drugs where an exact match found 0 NDCs, buta  fuzzy match found some
 fuzzy_drugs <- comparison_differences %>%
   filter(Number_NDCs_exact == 0 & Number_NDCs_fuzzy > 0) %>%
   arrange(Number_NDCs_fuzzy)
@@ -631,9 +631,9 @@ insulin_human_ndcs <- c("47918-874", "47918-878", "47918-880", "47918-891", "479
 
 metformin_sitagliptin_ndcs <- c("0006-0078", "0006-0080", "0006-0081", "0006-0575", "0006-0577", "50090-5502", "50090-5504", "50090-5616", "0006-0112", "0006-0221", "0006-0277", "50090-1036","50090-3472", "50090-3527", "50090-4084", "50090-4086", "50090-4087", "50090-5547", "50090-5585", "55154-5040", "55154-5042", "70710-1899", "70710-1900", "70710-1901","70771-1790", "70771-1791", "70771-1792", "70710-1986", "70710-1987", "70710-2036", "70710-2037", "70710-2038", "70771-1869", "70771-1870", "70771-1886", "70771-1887","70771-1888", "70710-1786", "70710-1787", "70771-1859", "70771-1860", "70710-1804", "70710-1805", "70710-1806", "70771-1879", "70771-1880", "70771-1881", "70710-1240","70710-1241", "70710-1242", "70771-1770", "70771-1771", "70771-1772")
 
-fluticasone_umeclidinium_vilanterol_ndcs <- c("0173-0887", "0173-0893", "0173-0873", "66993-135", "66993-136","0173-0859", "0173-0882", "0173-0916", "0173-0869")
+fluticasone_umeclidinium_vilanterol_ndcs <- c("0173-0887", "0173-0893", "0173-0873", "66993-135", "66993-136", "0173-0859", "0173-0882", "0173-0916", "0173-0869")
 
-# Removing 'Amlodipine; Benazepril' as R can't seem to parse all the NDC's regardless of how I format them.
+# Removing 'Amlodipine; Benazepril' as R can't seem to parse all the NDCs, regardless of how I format them.
 all_drug_names_ndcs <- all_drug_names_ndcs %>%
   filter(Drug_Name != "Amlodipine; Benazepril")           
 
@@ -673,7 +673,7 @@ all_drug_names_ndcs <- all_drug_names_ndcs %>%
 -------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 
-(Working) Break out the NDC's for each drug
+(Working) Break out the NDCs for each drug
 ```{r}
 # Number of NDCs to expect
 #sum(all_drug_names_ndcs$Number_NDCs, na.rm = TRUE)
@@ -700,11 +700,11 @@ drug_ndc_detail_package <- drug_ndc_detail_package %>%
 ```
 
 
-This package information was found in the same location as the NDC Product data, and the purpose of joining to it is to see the following fields:
+This package information was found in the same location as the NDC Product data, and the purpose of joining it is to see the following fields:
 
 STARTMARKETINGDATE: This is the date that the labeler indicates was the start of its marketing of the drug product.
 
-ENDMARKETINGDATE: This is the date the product will no longer be available on the market. If a product is no longer being manufactured, in most cases, the FDA recommends firms use the expiration date of the last lot produced as the EndMarketingDate, to reflect the potential for drug product to remain available after manufacturing has ceased. Products that are the subject of ongoing manufacturing will not ordinarily have any EndMarketingDate. Products with a value in the EndMarketingDate will be removed from the NDC Directory when the EndMarketingDate is reached.
+ENDMARKETINGDATE: This is the date the product will no longer be available on the market. If a product is no longer being manufactured, in most cases, the FDA recommends firms use the expiration date of the last lot produced as the EndMarketingDate, to reflect the potential for the drug product to remain available after manufacturing has ceased. Products that are the subject of ongoing manufacturing will not ordinarily have any EndMarketingDate. Products with a value in the EndMarketingDate will be removed from the NDC Directory when the EndMarketingDate is reached.
 
 
 NDC_EXCLUDE_FLAG.
@@ -718,12 +718,12 @@ https://www.fda.gov/drugs/drug-approvals-and-databases/ndc-package-file-definiti
 Load in Package file
 ```{r}
 # Set file path
-file_path_package <- "C:/Users/Ron/OneDrive/Desktop/Personal - Important/Grad School Stuff/CUNY SPS/DATA 698 Spring 2025/Resources/package.xlsx"
+file_path_package <- "./package.xlsx"
 
 # Load in data
 package_data <- read_excel(file_path_package)
 
-# See which NDC's appear multiple times
+# See which NDCs appear multiple times
 drug_ndc_duplicates <- package_data %>%
   group_by(PRODUCTNDC) %>%
   filter(n() > 1) %>%
@@ -731,7 +731,7 @@ drug_ndc_duplicates <- package_data %>%
 ```
 
 
-I want to create 2 new dataframes based off of drug_ndc_detail and package_data, depending on whether or not they join and get package info
+I want to create 2 new dataframes based on drug_ndc_detail and package_data, depending on whether or not they join and get package info
 ```{r}
 # Successfully joined rows
 drug_ndc_detail_package <- drug_ndc_detail %>%
@@ -743,7 +743,7 @@ drug_ndc_detail_package_missing <- drug_ndc_detail %>%
 ```
 
 
-drug_ndc_detail has 40,597 rows, 193 of which don't have corresponding NDC's in package_data. Those that do match and appear in the package_data, when joined on drug_ndc_detail creates a one-to-many relationship for drugs. drug_ndc_detail_package has 93,415 rows, which occurs because each PRODUCTNDC has different NDCPACKAGECODES. For example, the NDC 0002-1433 for the drug Dulaglutide, has 2 different package codes: 
+drug_ndc_detail has 40,597 rows, 193 of which don't have corresponding NDCs in package_data. Those that do match and appear in the package_data, when joined on drug_ndc_detail, create a one-to-many relationship for drugs. drug_ndc_detail_package has 93,415 rows, which occurs because each PRODUCTNDC has different NDCPACKAGECODES. For example, the NDC 0002-1433 for the drug Dulaglutide has 2 different package codes: 
 (1) 2 SYRINGE in 1 CARTON / .5 mL in 1 SYRINGE (0002-1433-61)
 (2) 4 SYRINGE in 1 CARTON / .5 mL in 1 SYRINGE (0002-1433-80)
 
@@ -759,7 +759,7 @@ Now I need to get the list price of drugs, as the rebate value is tied to that. 
 
 
 ##### (Publicly Available) ##### 
-- NADAC (National Average Drug Acquisition Cost)	; Estimated real-world price pharmacies pay for drugs  
+- NADAC (National Average Drug Acquisition Cost); Estimated real-world price pharmacies pay for drugs  
 [https://data.medicaid.gov/dataset/99315a95-37ac-4eee-946a-3c523b4c481e]
   
 - FSS / VA pricing                  ;	Federal Supply Schedule / VA negotiated prices	
@@ -768,7 +768,7 @@ Now I need to get the list price of drugs, as the rebate value is tied to that. 
 
 ##### (License Needed) ##### 
 WAC (Wholesale Acquisition Cost)  	; Manufacturer’s published list price to wholesalers.
-AWP (Average Wholesale Price)	    	; Price the pharmacy pays a wholesaler, but an often inflated benchmark.
+AWP (Average Wholesale Price)	    	; Price the pharmacy pays a wholesaler, but often an inflated benchmark.
 AMP (Average Manufacturer Price)		; Manufacturer-reported average price.
 
 
@@ -792,21 +792,21 @@ API Functionality: (https://data.medicaid.gov/dataset/a217613c-12bc-5137-8b3a-ad
 https://www.medicaid.gov/medicaid-chip-program-information/by-topics/prescription-drugs/ful-nadac-downloads/nadacmethodology.pdf
 
 
-This site allows me to search drugs based by NDC Description (Which is effectively Drug_Name and PACKAGEDESCRIPTION together), NDC, and it contains the old NADAC, new NADAC, Percent Change, Start Date, End Date, and Effective Date for these price changes. However, I noticed that the NDC's are formatted differently here. For example, when 'NDC Description' is 'SILDENAFIL 50 MG TABLET', the NDC is '65862069030'. 
+This site allows me to search drugs based on NDC Description (Which is effectively Drug_Name and PACKAGEDESCRIPTION together), NDC, and it contains the old NADAC, new NADAC, Percent Change, Start Date, End Date, and Effective Date for these price changes. However, I noticed that the NDCs are formatted differently here. For example, when 'NDC Description' is 'SILDENAFIL 50 MG TABLET', the NDC is '65862069030'. 
 
-However, in my dataframe drug_ndc_detail_package, I have NDC's in this format: 65862-691. I also have NDCPACKAGECODE in this format: 65862-691-01.
-The NADAC website I provided has 11 digits NDC's, which is the standardized NDC format used by CMS (Centers for Medicare and Medicaid Services). As mentioned, this contains the Labeler code (5 digits), Product Code (4 digits), and Package Code (2 digits). NADAC helps CMS determine payment instead of using manufacturer-reported list prices such as WAC or AWP. Additionally, individual State Medicaid agencies use NADAC to determine payment for drug ingredient costs instead of calculating their own Average Acquisition Cost (AAC). More than 40 states utilize NADAC pricing to compute, in part, the ingredient costs of Medicaid-covered outpatient drugs. [https://www.analysource-public.com/drug-price-info/]
+However, in my dataframe drug_ndc_detail_package, I have NDCs in this format: 65862-691. I also have NDCPACKAGECODE in this format: 65862-691-01.
+The NADAC website I provided has 11-digit NDCs, which is the standardized NDC format used by CMS (Centers for Medicare and Medicaid Services). As mentioned, this contains the Labeler code (5 digits), Product Code (4 digits), and Package Code (2 digits). NADAC helps CMS determine payment instead of using manufacturer-reported list prices such as WAC or AWP. Additionally, individual State Medicaid agencies use NADAC to determine payment for drug ingredient costs instead of calculating their own Average Acquisition Cost (AAC). More than 40 states utilize NADAC pricing to compute, in part, the ingredient costs of Medicaid-covered outpatient drugs. [https://www.analysource-public.com/drug-price-info/]
 
 Looking at it from a different perspective, I searched drug_ndc_detail_package for all rows when Drug_Name = 'Sildenafil' and got back 551 rows, which are all unique NDCPACKAGECODES. When I search the website for when 'NDC Description' contains 'Sildenafil', I get back 7157 results. This is because it contains all the different NADAC's for all those products.
 
-For example, I checked drug_ndc_detail_package for for all rows when Drug_Name = 'Sildenafil', and when 'NDC' = '13668-185', I get back 5 rows. One of those rows has NDCPACKAGECODE = '13668-185-90'. The NADAC website does in fact have results for when NDC = '13668018590'. Another example, when NDCPACKAGECODE = 13668-185-05, I see a corresponding NDC for 13668018505. It seems that these are actually identical, just formatted a bit differently.
+For example, I checked drug_ndc_detail_package for all rows when Drug_Name = 'Sildenafil', and when 'NDC' = '13668-185', I get back 5 rows. One of those rows has NDCPACKAGECODE = '13668-185-90'. The NADAC website does have results for when NDC = '13668018590'. Another example, when NDCPACKAGECODE = 13668-185-05, I see a corresponding NDC for 13668018505. It seems that these are identical, just formatted a bit differently.
 
-For another example, I checked my dataframe for when NDC = 99207, and I have 2 rows. These rows have NDC = '99207-300', and NDCPACKAGECODE = '99207-300-30' and '99207-300-60'. I checked the website for when NDC starts with 99207 and contains 300, and I do Indeed see results for when NDC = '99207030030' or NDC = '99207030060'. This confirms what I saw in my first example above, that this website does have the data I need, in a different format.
+For another example, I checked my dataframe for when NDC = 99207, and I have 2 rows. These rows have NDC = '99207-300', and NDCPACKAGECODE = '99207-300-30' and '99207-300-60'. I checked the website for when NDC starts with 99207 and contains 300, and I indeed see results for when NDC = '99207030030' or NDC = '99207030060'. This confirms what I saw in my first example above, that this website does have the data I need, in a different format.
 
-First, I will make a new column in drug_ndc_detail_package called 'NDC_Formatted', which simply changes NDCPACKAGECODE to match the format of the website NDCs. So if NDCPACKAGECODE = '99207-300-30, then NDC_Formatted should be 99207030030 . If NDCPACKAGECODE = '13668-185-05', then  NDC_Formatted should be 13668018505.
+First, I will make a new column in drug_ndc_detail_package called 'NDC_Formatted', which simply changes NDCPACKAGECODE to match the format of the website NDCs. So if NDCPACKAGECODE = '99207-300-30, then NDC_Formatted should be 99207030030. If NDCPACKAGECODE = '13668-185-05', then  NDC_Formatted should be 13668018505.
 
 
-(Working) Reformat base NDC to the standard 11-digit CMS NDC
+(Working) Reformat the base NDC to the standard 11-digit CMS NDC
 [This was included twice, I think formatting issues]
 ```{r}
 drug_ndc_detail_package <- drug_ndc_detail_package %>%
@@ -818,7 +818,7 @@ drug_ndc_detail_package <- drug_ndc_detail_package %>%
 ```
 
 
-As the NADAC dataset is too large and contains 2.7 million rows, I'll need API functionality to call just the NDC's I need
+As the NADAC dataset is too large and contains 2.7 million rows, I'll need API functionality to call just the NDCs I need
 ```{r}
 library(httr)
 library(jsonlite)
@@ -852,11 +852,11 @@ I'm looking for the dataset that has these fields:
     ndc
     old_nadac_per_unit
     new_nadac_per_unit
-    classification_for_rate_setting (un-needed)
-    percent_change (un-needed)
-    primary_reason (un-needed)
-    start_date (un-needed)
-    end_date (un-needed)
+    classification_for_rate_setting (unnecessary)
+    percent_change (unnecessary)
+    primary_reason (unnecessary)
+    start_date (unnecessary)
+    end_date (unnecessary)
     effective_date
 
 
@@ -875,7 +875,7 @@ NADAC dataset UUID is a217613c-12bc-5137-8b3a-ada0e4dad1ff
 NADAC distribution UUID is 249402d0-482f-5201-8651-b3a71398ff49 
 
 
-(Working) Query for first N rows
+(Working) Query for the first N rows
 ```{r}
 # Query from API on specific NDC
 # https://data.medicaid.gov/api/1/datastore/sql?query=[SELECT * FROM a217613c-12bc-5137-8b3a-ada0e4dad1ff][WHERE NDC = "00071015723"][LIMIT 100];&show_db_columns
@@ -908,7 +908,7 @@ if (status_code(response) == 200) {
 ```
 
 
-(Working) Query all data for all rows for specific NDC.
+(Working) Query all data for all rows for a specific NDC.
 ```{r}
 library(httr)
 library(jsonlite)
@@ -922,7 +922,7 @@ query <- paste0(
   "[SELECT ndc_description,ndc,old_nadac_per_unit,new_nadac_per_unit,classification_for_rate_setting,percent_change,primary_reason,",
   "start_date,end_date,effective_date FROM ", NADAC_distribution_UUID, "]",
   "[WHERE ndc = \"", ndc_val, "\"]"
-  #"[LIMIT 10]"  #If I only want specific number of rows
+  #"[LIMIT 10]"  #If I only want a specific number of rows
 )
 
 # Classification for Rate Setting represents the classification as one of the following: Brand (‘B’) or Generic (‘G’). Drug category and drug category override status are both used to determine the Classification for Rate Setting for each NDC
@@ -931,7 +931,7 @@ query <- paste0(
 # Encode and make request
 encoded_query <- URLencode(query, reserved = TRUE)
 full_url <- paste0(base_url, "?query=", encoded_query)
-# `res` is response object
+# `res` is the response object
 res <- GET(full_url)
 
 # Output status and result
@@ -955,7 +955,7 @@ print(query_result_sorted)
 Unfortunately, the API doesn't have functionality to filter data based on the date fields, which would have sped up the server-side process to exclude data past 2022. I will pull all data for every NDC, and then filter later.
 
 
-(Working) Query all data for all rows for specific NDC, annual-level averages
+(Working) Query all data for all rows for a specific NDC, annual-level averages
 ```{r}
 library(httr)
 library(jsonlite)
@@ -1025,7 +1025,7 @@ Regarding outliers, the NDC 65862069030 had these values for 'Old NADAC Per Unit
 0.66538 	10/17/2018
 25.97022  9/19/2018
 
-The record on 9/19/2018 is far too high compared to all the other observations for this field in the entire data for NDC 65862069030, which ranges normally from 0.08516 to 0.66538. Any outlier values that are  much larger than all other values (for either the old NADAC per unit or new NADAC per unit) can throw off the estimates for future forecasting. That high value could represent a real, albeit temporary price change, a special pricing period due to brand/generic switches or even supply shortages. Outliers can alert the model that certain drugs/NDC's experience more volatility and price fluctuations or manipulations.
+The record on 9/19/2018 is far too high compared to all the other observations for this field in the entire data for NDC 65862069030, which ranges normally from 0.08516 to 0.66538. Any outlier values that are  much larger than all other values (for either the old NADAC per unit or the new NADAC per unit) can throw off the estimates for future forecasting. That high value could represent a real, albeit temporary price change, a special pricing period due to brand/generic switches, or even supply shortages. Outliers can alert the model that certain drugs/NDCs experience more volatility and price fluctuations or manipulations.
 
 
 (Working) Call API for all rows for specific NDC, annual-level averages, with IQR-based outlier detection
@@ -1113,13 +1113,13 @@ print(avg_by_year)
 ```
 
 
-Now we move to a crucial step- I want to repeat the above exercise, for every NDC_Formatted in drug_ndc_detail_package. Earlier when I ran this code to get the old and new NADAC per units, it took 6 hours for 4,850 NDC's out of 93,415. It took so long because each NDC_Formatted could have any number of rows inside the NADAC dataset. However, since we are doing annual-level averages, my hope is that this works faster, rather than returning every single row for each NDC. 
+Now we move to a crucial step- I want to repeat the above exercise for every NDC_Formatted in drug_ndc_detail_package. Earlier, when I ran this code to get the old and new NADAC per units, it took 6 hours for 4,850 NDCs out of 93,415. It took so long because each NDC_Formatted could have any number of rows inside the NADAC dataset. However, since we are doing annual-level averages, I hope that this works faster, rather than returning every single row for each NDC. 
 
 Additionally, to make this faster, I will attempt to use parallelization for this process so that my computer uses more cores.
 
 
 (Working) Run the above API call for every NDC_Formatted in drug_ndc_detail_package in batches with parallelization.
-[[[LONG RUN TIME]]] Each batch of 1000 NDC's takes about 15-18 minutes to run, so altogether about 27 hours for the 93,415 NDC's.
+[[[LONG RUN TIME]]] Each batch of 1000 NDCs takes about 15-18 minutes to run, so altogether about 27 hours for the 93,415 NDCs.
 ```{r}
 library(httr)
 library(jsonlite)
@@ -1135,10 +1135,10 @@ base_url <- "https://data.medicaid.gov/api/1/datastore/sql"
 NADAC_distribution_UUID <- "249402d0-482f-5201-8651-b3a71398ff49"
 
 # Define save directory
-save_dir <- "C:/Users/Ron/OneDrive/Desktop/Personal - Important/Grad School Stuff/CUNY SPS/DATA 698 Spring 2025/NADAC_Batches"
+save_dir <- "./NADAC_Batches"
 dir.create(save_dir, showWarnings = FALSE, recursive = TRUE)
 
-# Get yearly NADAC averages for a NDC
+# Get yearly NADAC averages for an NDC
 get_ndc_avg_data <- function(ndc_val) {
   query <- paste0(
     "[SELECT ndc_description,ndc,old_nadac_per_unit,new_nadac_per_unit,effective_date,end_date FROM ", NADAC_distribution_UUID, "]",
@@ -1197,7 +1197,7 @@ get_ndc_avg_data <- function(ndc_val) {
   return(yearly)
 }
 
-# Define full list of NDCs
+# Define the full list of NDCs
 ndc_all <- drug_ndc_detail_package$NDC_Formatted
 
 # Split NDCs into batches of 1000
@@ -1248,7 +1248,7 @@ library(dplyr)
 library(stringr)
 
 # Define file path
-folder_path <- "C:/Users/Ron/OneDrive/Desktop/Personal - Important/Grad School Stuff/CUNY SPS/DATA 698 Spring 2025/NADAC_Batches"
+folder_path <- "./NADAC_Batches"
 file_list <- list.files(path = folder_path, pattern = "^ndc_nadac_averages_batch_\\d{3}\\.csv$", full.names = TRUE)
 
 # Read and combine all batch CSV files
@@ -1272,7 +1272,7 @@ all_nadac_data_2013_2022 <- all_nadac_data %>%
 
 
 ################################################################################
-# Load in file if needed
+# Load in the file if needed
 #all_nadac_data_2013_2022 <- read_csv("./ndc_nadac_averages_batch_total.csv")
 
 # Remove leading quote from Excel file for leading 0's
@@ -1281,7 +1281,7 @@ all_nadac_data_2013_2022 <- all_nadac_data %>%
 ```
 
 
-After combining the outputs of the API calls, I am left with a dataframe of 146,554 rows, which after excluding any NADAC average values past 2022, I am left with 95,134 rows. Now we come to the next step, to join everything together. I will do so on drug_ndc_detail_package NDC_Formatted and all_nadac_data_2013_2022 ndc, which are the same field in the 11-digit length format. This will create one-to-many relationships, but give me the granularity I want to see as for each NDC's NADAC values change.
+After combining the outputs of the API calls, I am left with a dataframe of 146,554 rows, which after excluding any NADAC average values past 2022, I am left with 95,134 rows. Now we come to the next step, to join everything together. I will do so on drug_ndc_detail_package NDC_Formatted and all_nadac_data_2013_2022 NDC, which are the same field in the 11-digit length format. This will create one-to-many relationships, but give me the granularity I want to see for each NDC's NADAC values change.
 
 
 (Working) Join the two frames together to have CMS NDC, NADACs over the years
@@ -1571,7 +1571,7 @@ ggplot(plot_data_facet, aes(x = year, y = value, color = metric)) +
 (Old) Loop through and get plots for every drug
 ```{r}
 # Define output directory
-output_dir <- "C:/Users/Ron/OneDrive/Desktop/Personal - Important/Grad School Stuff/CUNY SPS/DATA 698 Spring 2025/NADAC_Plots"
+output_dir <- "./NADAC_Plots"
 
 ################################################################################
 # Loop through distinct Drug_Name values
