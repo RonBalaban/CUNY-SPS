@@ -1,0 +1,1991 @@
+---
+title: "DATA 698 Capstone Project"
+author: "Ron Balaban"
+date: "2025-03-14"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+options(tinytex.verbose = TRUE)
+```
+
+
+Libraries
+```{r}
+library(chromote)
+library(caret)
+library(dplyr)
+library(fable)
+library(furrr)
+library(ggplot2)
+library(httr)
+library(jsonlite)
+library(purrr)
+library(readxl)
+library(rvest)
+library(stringr)
+library(shiny)
+library(tidyr)
+library(tsibble)
+library(tidyverse)
+```
+
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------SAVE/LOAD PROJECT ENVIRONMENT DATA----------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+(Optional) Run this code with the environment file in chosen directory, in order to save time and not run functions/data manipulations/API calls
+```{r}
+# Save environment
+#save.image(file = "./project_environment2.RData")
+
+# Load environment
+#load("./project_environment2.RData")
+
+################################################################################
+# Save data for shiny app project
+#saveRDS(ndc_data, file = "./ndc_data.rds")
+
+#saveRDS(all_drug_names_ndcs, file = "./all_drug_names_ndcs.rds")
+
+#saveRDS(all_ndc_nadac_awp_2013_2022, file = "./all_ndc_nadac_awp_2013_2022.rds")
+
+#saveRDS(all_ndc_nadac_awp_package_2013_2022,file = "./all_ndc_nadac_awp_package_2013_2022.rds")
+
+```
+
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+(Working) Scrape all tables, and combines them into tibble for a drug
+```{r}
+# Function to scrape data for a given drug
+scrape_clincalc = function(drug){
+  url_base = "https://clincalc.com/DrugStats/Drugs/"
+  
+  # Clean the drug name: remove spaces and semicolons, to avoid URL mismatch
+  clean_drug <- gsub("[[:space:];]", "", drug)
+  url_drugs = str_c(url_base, clean_drug)
+  
+  # Scrape data from the webpage
+  drugs_data = read_html_live(url_drugs)
+  
+  # Extract all the tables into a list
+  cost_list = drugs_data |>
+    html_table()  
+  
+  # Assign the specific tables to variables
+  Prescriptions_Patients = cost_list[[2]]  
+  Prescription_Fill_Costs = cost_list[[5]]  
+  Therapy_Costs = cost_list[[6]]  
+  
+  
+  # Ensure each table has column names, assign them manually if missing
+  if (is.null(colnames(Prescriptions_Patients))) {
+    colnames(Prescriptions_Patients) <- c("Year", "Total_Prescriptions", "Patients")
+  }
+  
+  if (is.null(colnames(Prescription_Fill_Costs))) {
+    colnames(Prescription_Fill_Costs) <- c("Year", "Total_Cost", "OOP_Cost")
+  }
+  
+  if (is.null(colnames(Therapy_Costs))) {
+    colnames(Therapy_Costs) <- c("Year", "Therapy_Cost")
+  }
+  
+  # Convert to tibbles and clean data
+  Prescriptions_Patients_clean = as_tibble(Prescriptions_Patients) %>%
+    select(Year, everything())  
+  
+  Prescription_Fill_Costs_clean = as_tibble(Prescription_Fill_Costs) %>%
+    select(Year, everything())  
+  
+  Therapy_Costs_clean = as_tibble(Therapy_Costs) %>%
+    select(Year, everything()) 
+  
+  # Join based on 'Year' 
+  Scraped_Drug_Data = Prescriptions_Patients_clean %>%
+    left_join(Prescription_Fill_Costs_clean, by = "Year") %>%
+    left_join(Therapy_Costs_clean, by = "Year")
+  
+  # Rearrange data
+  Scraped_Drug_Data = Scraped_Drug_Data %>%
+    mutate(Drug_Name = drug) %>%
+    select(Drug_Name, everything())  
+  
+  # Close session after scraping
+  drugs_data$session$close()
+  
+  # Return the combined tibble with the drug name
+  return(Scraped_Drug_Data)
+}
+
+```
+
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+(Working) Get list of all drugs, call the above function, and store the data 
+```{r}
+scrape_drug_names = function() {
+  url = "https://clincalc.com/DrugStats/"
+  
+  # Scrape the webpage
+  drug_page = read_html(url)
+  
+  # Extract the drug names table using html_table
+  drug_table = drug_page %>%
+    html_element("#tableTopDrugs") %>%  
+    html_table(fill = TRUE)  
+  
+  # Check the first few rows to ensure it works correctly
+  print(head(drug_table))
+  
+  # Extract the drug names from the second column (the first column is an index)
+  drug_names = drug_table[[2]]
+  
+  # Convert the drug names into a tibble
+  drug_names_tibble = tibble(Drug_Name = drug_names)
+  return(drug_names_tibble)
+}
+
+all_drug_names = scrape_drug_names()
+
+# Remove problematic drug
+all_drug_names <- all_drug_names %>%
+  filter(Drug_Name != "Nirmatrelvir; Ritonavir")
+
+all_drug_names <- all_drug_names %>%
+  filter(Drug_Name != "Dextroamphetamine; Dextroamphetamine Saccharate; Amphetamine; Amphetamine Aspartate")
+```
+
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+(Working) Run the Scrape function on all the drugs, and save the output
+```{r}
+# Initialize empty tibble to hold drug data
+Total_Drug_Data <- tibble()
+
+for(drug in all_drug_names$Drug_Name) {
+  drug_data <- scrape_clincalc(drug)
+  Total_Drug_Data <- bind_rows(Total_Drug_Data, drug_data)
+}
+
+
+# Save the Total_Drug_Data to a CSV file
+write.csv(Total_Drug_Data, "Total_Drug_Data.csv", row.names = FALSE)
+
+################################################################################
+# Error Handling for Scraping
+#tryCatch({
+#  drug_data <- scrape_clincalc(drug)
+#  Total_Drug_Data <- bind_rows(Total_Drug_Data, drug_data)
+#}, error = function(e) {
+#  message(paste("Failed to scrape:", drug))
+#})
+```
+
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+(Working) Get Brand/ Generic Names for each drug
+```{r}
+# Function to scrape brand and generic names for a given drug
+scrape_clincalc_names = function(drug){
+  url_base = "https://clincalc.com/DrugStats/Drugs/"
+  
+  # Clean the drug name: remove spaces and semicolons to avoid URL mismatch
+  clean_drug <- gsub("[[:space:];]", "", drug)
+  url_drugs = str_c(url_base, clean_drug)
+  
+  # Scrape HTML data from the webpage
+  drugs_data = read_html(url_drugs) 
+  
+  # Extract the brand names using the CSS selector
+  brand_names = drugs_data %>%
+    html_node("div.row:nth-child(29) > div:nth-child(1) > ul:nth-child(2)") %>%
+    # Extract all list items within the unordered list
+    html_nodes("li") %>% 
+    # Extract text content, trim whitespace
+    html_text(trim = TRUE)  
+  
+  # Extract the generic names using the CSS selector
+  generic_names = drugs_data %>%
+    html_node("div.row:nth-child(29) > div:nth-child(2) > ul:nth-child(2)") %>%
+    # Extract all list items within the unordered list
+    html_nodes("li") %>%  
+    # Extract text content, trim whitespace
+    html_text(trim = TRUE)  
+  
+  # Clean returned names
+  brand_names_clean = paste(brand_names, collapse = ", ")
+  generic_names_clean = paste(generic_names, collapse = ", ")
+  return(list(Brand_Names = brand_names_clean, Generic_Names = generic_names_clean))
+}
+
+
+# Apply function to each drug- takes 5-10 mins to run
+all_drug_names = all_drug_names %>%
+  mutate(Brand_Names = map_chr(Drug_Name, ~scrape_clincalc_names(.x)$Brand_Names),
+         Generic_Names = map_chr(Drug_Name, ~scrape_clincalc_names(.x)$Generic_Names))
+```
+
+
+(Working) Break out the Brand and Generic names separately for later if needed
+```{r}
+all_brand_names <- all_drug_names %>%
+  # Separate the Brand_Names by comma and create a row for each brand name
+  separate_rows(Brand_Names, sep = ",") %>%
+  # Remove any leading/trailing whitespace from the brand names
+  mutate(Brand_Name = str_trim(Brand_Names)) %>%
+  select(Drug_Name, Brand_Name)
+
+
+all_generic_names <- all_drug_names %>%
+  # Separate the Brand_Names by comma and create a row for each brand name
+  separate_rows(Generic_Names, sep = ",") %>%
+  # Remove any leading/trailing whitespace from the brand names
+  mutate(Generic_Name = str_trim(Generic_Names)) %>%
+  select(Drug_Name, Generic_Name)
+```
+
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+(Working) Avoid Drug name collision/duplication - Optimized
+```{r}
+Check_Drug_Duplicates_Optimized <- function(all_drug_names) {
+  # This functions looks at which drugs have overlapping brand/generic names, and calls them out. 
+  # For example, Fluticasone vs Fluticasone; Salmeterol or Metformin vs Metformin; Sitagliptin
+  
+  # Expand names
+  drug_name_expanded <- all_drug_names %>%
+    mutate(all_names = pmap(
+      list(Drug_Name, Brand_Names, Generic_Names),
+      function(drug, brand, generic) {
+        c(
+          str_trim(str_split(drug, ";")[[1]]),
+          str_trim(str_split(brand, ",")[[1]]),
+          str_trim(str_split(generic, ",")[[1]])
+        ) %>% unique()
+      }
+    ))
+  
+  # Unnest all names into long format
+  exploded_names <- drug_name_expanded %>%
+    select(Drug_Name, all_names) %>%
+    unnest(all_names) %>%
+    mutate(all_names = tolower(all_names))  # lower case for matching
+  
+  # Self-join on shared names
+  duplicates <- exploded_names %>%
+    inner_join(exploded_names, by = "all_names") %>%
+    filter(Drug_Name.x < Drug_Name.y)  # avoid A-B and B-A both showing
+  
+  # Summarize to list shared names
+  potential_duplicates <- duplicates %>%
+    group_by(Drug_1_Name = Drug_Name.x, Drug_2_Name = Drug_Name.y) %>%
+    summarise(
+      Shared_Names = paste(unique(all_names), collapse = "; "),
+      .groups = "drop"
+    ) %>%
+    arrange(Drug_1_Name, Drug_2_Name)
+  
+  return(potential_duplicates)
+}
+
+# See drugs with re-occurring names in other drugs
+potential_duplicates <- Check_Drug_Duplicates_Optimized(all_drug_names)
+```
+
+This is useful for if I decide to aggregate drugs together, but I'll keep them separate for now- I want to preserve the granularity of each drug, even if there might be some overlap. For example, Fluticasone vs Fluticasone; Salmeterol or Metformin vs Metformin; Sitagliptin
+
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------NDC DATA----------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+NDC Data, sourced from the U.S. FDA 
+Downloadable file found at the bottom, under 'Original dataset downloads' :
+https://www.fda.gov/drugs/drug-approvals-and-databases/national-drug-code-directory
+
+Alternatively, found here under 'Additional References'
+https://www.fda.gov/drugs/drug-approvals-and-databases/national-drug-code-directory
+
+Product File Definitions
+https://www.fda.gov/drugs/drug-approvals-and-databases/ndc-product-file-definitions
+
+API Functionality:
+https://open.fda.gov/apis/drug/ndc/how-to-use-the-endpoint/
+
+
+Load in Product information all the different drugs and possible NDC's
+```{r}
+# Set file path
+file_path_product <- "C:/Users/Ron/OneDrive/Desktop/Personal - Important/Grad School Stuff/CUNY SPS/DATA 698 Spring 2025/Resources/product.xlsx"  
+
+# Load in data
+ndc_data <- read_excel(file_path_product)
+```
+
+
+(Working) Pull all NDC's for a drug by brand, generic, proprietary name V1
+```{r}
+Pull_NDC <- function(drug_name, all_drug_names, ndc_data) {
+  # Pull all NDC's for a drug by brand, generic, proprietary name V1. 
+  # Pull_NDC is simpler and faster for ad-hoc quick searching if we know exactly the search term (e.g., "Atorvastatin calcium").
+  
+  # Lowercase and clean input drug name
+  drug_name_lower <- tolower(str_trim(drug_name))
+  
+  # Pull all associated brand and generic names from all_drug_names
+  search_names <- all_drug_names %>%
+    filter(tolower(Drug_Name) == drug_name_lower) %>%
+    transmute(all_names = paste(Brand_Names, Generic_Names, sep = ", ")) %>%
+    pull(all_names) %>%
+    str_split(",\\s*") %>%
+    unlist() %>%
+    tolower() %>%
+    str_trim() %>%
+    unique()
+  
+  # Turn each name into a word-boundary regex for exactish matching
+  regex_patterns <- paste0("\\b", search_names, "\\b")
+  full_pattern <- paste(regex_patterns, collapse = "|")
+  
+  # Clean ndc_data for consistent casing
+  ndc_data_clean <- ndc_data %>%
+    mutate(PROPRIETARYNAME = tolower(PROPRIETARYNAME),  #Brand names
+          NONPROPRIETARYNAME = tolower(NONPROPRIETARYNAME), #Generic names
+          SUBSTANCENAME = tolower(SUBSTANCENAME) #Ingredient name- useful for combination drugs (i.e. - AMLODIPINE BESYLATE; ATORVASTATIN CALCIUM TRIHYDRATE)
+          )
+  
+  # Filter using combined exactish pattern
+  matching_rows <- ndc_data_clean %>%
+    filter(
+      grepl(full_pattern, PROPRIETARYNAME) |
+      grepl(full_pattern, NONPROPRIETARYNAME) |
+      grepl(full_pattern, SUBSTANCENAME)
+    )
+  
+  # Return unique NDCs
+  unique_ndcs <- matching_rows %>%
+    distinct(PRODUCTNDC) %>%
+    pull(PRODUCTNDC)
+  
+  return(unique_ndcs)
+}
+
+#Pull_NDC('Atorvastatin', all_drug_names, ndc_data) 
+```
+
+
+(Working) Pull all NDC's for a drug by brand, generic, proprietary name V2
+```{r}
+Get_NDCs_For_Drug <- function(drug_name, brand_data, generic_data, ndc_data) {
+  # Pull all NDC's for a drug by brand, generic, proprietary name V2
+  # Get_NDCs_For_Drug is smarter and safer if we want automated, comprehensive pulling — based on the real brand/generic associations of a drug.
+  
+  # Convert to lower case for matching
+  ndc_data_clean <- ndc_data %>%
+    mutate(across(c(PROPRIETARYNAME, NONPROPRIETARYNAME, SUBSTANCENAME), tolower))
+  
+  # Extract brand and generic names
+  brand_names <- brand_data %>% pull(Brand_Names)
+  generic_names <- generic_data %>% pull(Generic_Names)
+  
+  # Combine all names to search
+  search_terms <- c(drug_name, brand_names, generic_names) %>% unique() %>% tolower()
+  
+  # Filter NDCs where any of the important fields match
+  ndcs <- ndc_data_clean %>%
+    filter( PROPRIETARYNAME %in% search_terms |
+          NONPROPRIETARYNAME %in% search_terms |
+          str_detect(SUBSTANCENAME, paste(search_terms, collapse = "|"))
+          ) %>%
+    pull(PRODUCTNDC) %>%
+    unique()
+  
+  return(ndcs)
+}
+```
+
+
+Pull_NDC (v1) is simpler and faster for ad-hoc quick searching if we know exactly the search term (e.g., "Atorvastatin calcium").
+
+Get_NDCs_For_Drug (V2)is smarter and safer if we want automated, comprehensive pulling — based on the real brand/generic associations of a drug.
+
+This function is later redefined at the bottom for when specifying the brand and generic NDC's, but this version works as needed for now
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+(Working) Run the Get_NDCs_For_Drug function for all drugs in all_drug_names. Exact Match.
+```{r}
+# Add empty NDCs column
+all_drug_names <- all_drug_names %>%
+  mutate(NDCs = vector("list", n()))
+
+# Call the NDC function
+all_drug_names <- all_drug_names %>%
+  rowwise() %>%
+  mutate(
+    NDCs = list(
+      Get_NDCs_For_Drug(
+        Drug_Name,
+        tibble(Drug_Name = Drug_Name, Brand_Names = Brand_Names),
+        tibble(Drug_Name = Drug_Name, Generic_Names = Generic_Names),
+        ndc_data
+      )
+    ),
+    Number_NDCs = length(NDCs)  # count how many NDCs were found
+  ) %>%
+  ungroup()
+
+```
+
+
+This function successfully pulls the NDC's for all the drugs, by looking in the PROPRIETARYNAME, NONPROPRIETARYNAME, and SUBSTANCENAME in the NDC dataset. However, it returns no NDC's for these following drugs, so I'll need a fuzzy match.
+
+
+Amlodipine; Benazepril
+Albuterol; Ipratropium
+Dextroamphetamine; Dextroamphetamine Saccharate; Amphetamine; Amphetamine Aspartate
+Drospirenone; Ethinyl Estradiol
+Desogestrel; Ethinyl Estradiol
+Ethinyl Estradiol; Norgestimate
+Fluticasone; Salmeterol
+Insulin Human; Insulin Isophane Human
+Metformin; Sitagliptin
+
+
+![](https://i.imgur.com/CjoF195.jpeg)
+
+
+(Working) Get_NDCs_For_Drug by fuzzy matching.
+```{r}
+Get_NDCs_For_Drug_Fuzzy <- function(drug_name, brand_data, generic_data, ndc_data) {
+  # Combine brand and generic names into a single vector
+  all_names <- c(
+    unlist(strsplit(brand_data$Brand_Names, ",")),
+    unlist(strsplit(generic_data$Generic_Names, ","))
+  ) %>%
+    str_trim() %>%
+    tolower() %>%
+    str_replace_all(";", "and") %>%  
+    # replace multiple spaces with single space
+    str_replace_all("\\s+", " ")      
+
+  # Also include the Drug_Name itself
+  all_names <- c(all_names, tolower(drug_name) %>%
+                   str_replace_all(";", "and") %>%
+                   str_replace_all("\\s+", " "))
+
+  # Clean up ndc_data columns
+  ndc_data_clean <- ndc_data %>%
+    mutate(
+      PROPRIETARYNAME = PROPRIETARYNAME %>% tolower() %>% str_replace_all(";", "and") %>% str_replace_all("\\s+", " "),
+      NONPROPRIETARYNAME = NONPROPRIETARYNAME %>% tolower() %>% str_replace_all(";", "and") %>% str_replace_all("\\s+", " "),
+      SUBSTANCENAME = SUBSTANCENAME %>% tolower() %>% str_replace_all(";", "and") %>% str_replace_all("\\s+", " ")
+    )
+
+  # Now match by partial inclusion
+  matched_ndcs <- ndc_data_clean %>%
+    filter(
+      PROPRIETARYNAME %in% all_names |
+      NONPROPRIETARYNAME %in% all_names |
+      str_detect(SUBSTANCENAME, paste(all_names, collapse = "|"))
+    ) %>%
+    pull(PRODUCTNDC) %>%
+    unique()
+
+  return(matched_ndcs)
+}
+
+################################################################################
+# Add empty NDCs column
+all_drug_names_fuzzy <- all_drug_names %>%
+  mutate(NDCs = vector("list", n()))
+
+# Call the NDC function
+all_drug_names_fuzzy <- all_drug_names %>%
+  rowwise() %>%
+  mutate(
+    NDCs = list(
+      Get_NDCs_For_Drug_Fuzzy(
+        Drug_Name,
+        tibble(Drug_Name = Drug_Name, Brand_Names = Brand_Names),
+        tibble(Drug_Name = Drug_Name, Generic_Names = Generic_Names),
+        ndc_data
+      )
+    ),
+    Number_NDCs = length(NDCs)  # count how many NDCs were found
+  ) %>%
+  ungroup()
+
+```
+
+
+The fuzzy match gives us this many NDC's for the previously empty drugs:
+71 for Amlodipine; Benazepril
+19 for Albuterol; Ipratropium
+360 for Dextroamphetamine; Dextroamphetamine Saccharate; Amphetamine; Amphetamine Aspartate
+24 for Drospirenone; Ethinyl Estradiol
+20 for Desogestrel; Ethinyl Estradiol
+136 for Ethinyl Estradiol; Norgestimate
+49 for Fluticasone; Salmeterol
+0 for Insulin Human; Insulin Isophane Human
+28 for Metformin; Sitagliptin
+
+
+Comparing exact match vs the fuzzy match
+```{r}
+# First, join the two datasets side by side by Drug_Name
+all_drug_names_comparison <- all_drug_names %>%
+  select(Drug_Name, Number_NDCs_exact = Number_NDCs) %>%
+  left_join(
+    all_drug_names_fuzzy %>%
+      select(Drug_Name, Number_NDCs_fuzzy = Number_NDCs),
+    by = "Drug_Name"
+  ) %>%
+  mutate(
+    Difference = Number_NDCs_fuzzy - Number_NDCs_exact,
+    Match = Number_NDCs_fuzzy == Number_NDCs_exact
+  )
+
+# View rows where the match is FALSE (meaning the counts differ)
+comparison_differences <- all_drug_names_comparison %>% filter(!Match)
+
+# See which ones had more or fewer NDCs
+comparison_differences %>%
+  arrange(desc(abs(Difference)))
+```
+
+
+Plot the differences in matches.
+```{r}
+# First, reshape the comparison_differences data longer for plotting
+plot_data <- comparison_differences %>%
+  pivot_longer(
+    cols = c(Number_NDCs_exact, Number_NDCs_fuzzy),
+    names_to = "Match_Type",
+    values_to = "Number_NDCs"
+  ) %>%
+  mutate(Match_Type = recode(Match_Type,
+                        "Number_NDCs_exact" = "Exact",
+                        "Number_NDCs_fuzzy" = "Fuzzy")
+  )
+
+# Plot
+ggplot(plot_data, aes(x = Match_Type, y = Number_NDCs, fill = Match_Type)) +
+  geom_col(position = "dodge", width = 0.7) +
+  scale_fill_manual(values = c("Exact" = "red", "Fuzzy" = "blue")) +
+  facet_wrap(~ Drug_Name, scales = "free_y") +
+  theme_minimal() +
+  labs(title = "Exact vs Fuzzy Matching: Number of NDCs") +
+  theme(strip.text = element_text(size = 8),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "none")
+
+```
+
+
+There are far too many NDC matches for those drugs that did have an exact match (when Number_NDCs_exact != 0). I'll just look at those drugs that didn't have exact matches, but did have fuzzy matches.
+```{r}
+# drugs where exact match found 0 NDCs but fuzzy match found some
+fuzzy_drugs <- comparison_differences %>%
+  filter(Number_NDCs_exact == 0 & Number_NDCs_fuzzy > 0) %>%
+  arrange(Number_NDCs_fuzzy)
+
+fuzzy_drugs
+```
+
+
+
+Manually adjusting NDCs where the match functions failed
+```{r}
+albuterol_ipratropium_ndcs <- c("0310-9080", "59651-333", "59651-334", "63629-2611", "64980-442", "64980-443", "69238-1344", "69238-1345", "70710-1061", "70710-1062", "70771-1511", "70771-1512","71205-898", "71205-899", "75834-273", "75834-274", "0054-0742", "0093-3174", "0378-7057", "0378-7058", "0378-8270", "0487-0301", "0487-9501", "0487-9901","0487-9904", "0781-7296", "17270-0740", "45802-088", "47335-703", "50090-0516", "50090-5179", "50090-5231", "50090-5735", "50090-6560", "50742-392", "50742-393","51407-367", "51407-368", "51662-1267", "51662-1499", "51662-1513", "53489-176", "53489-177", "55154-2132", "55154-4410", "55700-908", "59651-183", "59651-184","60687-395", "60687-662", "62135-189", "62135-671", "62135-672", "62135-826", "62135-827", "62135-828", "62135-829", "63187-204", "65862-858", "66993-019","67296-0578", "67296-1698", "67296-1863", "68071-2300", "68071-3780", "68071-4543", "68071-4754", "68071-4940", "68084-949", "68180-963", "68788-7573", "68788-7702","68788-7996", "68788-8399", "68788-8492", "68788-8787", "69097-142", "70518-3442", "70518-3541", "70752-102", "71205-211", "71205-441", "71205-641", "71205-732","71872-7054", "72162-1212", "72162-2064", "76204-200", "76282-679", "76420-087", "76420-088", "76420-531", "80425-0266", "80425-0359", "81894-104", "81894-105","81894-106", "82804-036", "82804-189", "83008-079", "50090-4137", "67296-1867", "76204-010", "76204-011", "76204-027", "0597-0087", "83220-002", "0597-0024","83220-001", "0054-0045", "0054-0046", "0378-7970", "0487-9801", "16714-526", "16714-527", "24208-398", "24208-399", "47335-706", "50090-0668", "50090-5968","50090-6373", "55154-2134", "60505-0826", "60505-0827", "60687-394", "62135-830", "63187-188", "65862-905", "68071-3769", "69238-2016", "69238-2017", "72162-2143","72162-2144", "72888-148", "72888-149", "76204-100", "0378-9671", "0487-0201", "47335-756", "50090-1382", "50090-1669", "55154-2133", "60429-975", "60687-405","62135-831", "63187-529", "65862-906", "68788-8103", "69097-173", "69097-840", "71205-051", "71205-726", "76204-600", "59310-117", "59310-540", "59310-580","67296-0769", "0173-0682", "50090-1159", "63187-026", "67296-0485", "68071-1670", "68071-1890", "70518-1081", "70518-1237", "50090-1158")
+
+alendronate_ndcs <- c("10135-718", "10135-719", "60723-205", "60723-207", "0054-0282", "0115-1676", "0115-1678", "0115-1679", "0115-1680", "0115-1681", "16714-631", "16714-632","16714-633", "50090-2322", "50090-3126", "50090-4692", "50090-5474", "50090-5677", "64980-340", "64980-341", "64980-342", "65862-327", "65862-328", "65862-329","67296-1500", "67296-2054", "68071-3340", "68071-3771", "68788-7130", "69097-223", "69097-224", "70518-0033", "70518-1192", "70954-264", "71205-048", "76282-681","76282-682", "70539-400", "78206-135", "78206-136", "78206-137")
+
+benazepril_ndcs <- c("42291-011", "42291-012", "42291-013", "42291-014", "42291-015", "50090-1039", "50090-1042", "50090-1418", "50090-2720", "50090-3357", "50090-4284", "50090-6770","50090-7361", "51655-213", "57237-142", "57237-143", "57237-144", "57237-145", "57237-146", "57237-147", "63629-7535", "65862-582", "65862-583", "65862-584","65862-585", "65862-586", "65862-587", "68788-8454", "70518-1928", "70518-2140", "71205-122", "71335-0953", "72162-2360", "72189-260", "72789-285", "72789-412","50090-5357", "50090-5389", "50090-6185", "50090-6427", "51655-201", "55111-338", "55111-339", "55111-340", "55111-341", "55111-586", "55111-587", "68001-130","68001-131", "68001-132", "68001-133", "68001-134", "68001-135", "68180-459", "68180-463", "68180-472", "68180-473", "68180-755", "68180-756", "68180-757","68180-758", "68180-759", "68180-760", "68788-8818", "71335-1946", "72789-432", "82868-041", "23155-749", "23155-750", "23155-751", "23155-752", "43063-677","43063-679", "43063-748", "43547-335", "43547-336", "43547-337", "43547-338", "50090-0914", "50090-3243", "50090-3359", "50090-5750", "50090-5751", "50268-109","50268-110", "50268-111", "50268-112", "51407-462", "51407-463", "51407-464", "51407-465", "51655-065", "51655-066", "51655-202", "51655-388", "51655-617","51655-755", "53746-751", "53746-752", "53746-753", "53746-754", "55154-4343", "55154-4344", "60760-351", "60760-352", "62135-719", "62135-720", "62135-721","62135-722", "63187-393", "63187-499", "63187-500", "63187-906", "65162-751", "65162-752", "65162-753", "65162-754", "65862-116", "65862-117", "65862-118","68071-1769", "68071-1770", "68071-1969", "68071-3057", "68071-3324", "68071-4722", "68071-5028", "68071-5129", "68071-5130", "68788-6889", "68788-6957","68788-7845", "68788-9313", "68788-9327", "70518-1640", "70518-2125", "70771-1148", "70771-1149", "70771-1150", "70771-1151", "71205-244", "71205-320","71335-0078", "71335-0267", "71335-0457", "71335-0854", "71335-1086", "71335-1365", "72162-1816", "72189-110", "0185-0211", "0185-0236", "0185-0277","0185-0325", "0574-0227", "0574-0228", "0574-0229", "62559-414", "62559-415", "62559-416", "62559-417", "68462-576", "68462-577", "68462-578", "68462-579","72162-2328", "72888-220", "72888-221", "72888-222", "0078-0364", "0078-0379", "0078-0405", "0078-0406")
+
+desogestrel_ethinyl_estradiol_ndcs <- c("0555-9043", "50090-2481", "51862-890", "75907-091", "50102-254", "51862-514", "79929-006", "0378-7296", "79929-020", "68180-739", "68180-891", "63629-2333","70700-113", "16714-464", "65862-887", "0555-9050", "16714-404", "0093-3304", "65862-886", "0555-9051", "50090-1395", "68462-318", "63629-2449", "70700-122")
+
+drospirenone_ethinyl_estradiol_ndcs <- c("50419-482", "50419-483", "50419-407", "0378-7299", "0378-7300", "31722-934", "31722-945", "50090-2494", "50090-2594", "68180-868", "68462-720", "68462-733","71205-144", "79929-019", "68180-894", "0781-4075", "0781-4103", "50102-240", "63629-2336", "70700-114", "59651-029", "51862-258", "68180-886", "0555-9131","50419-403", "0642-7470", "63629-2335", "70700-115", "68180-904", "0093-4000", "0480-4000", "50419-402", "50419-405", "59651-030")
+
+fluticasone_salmeterol_ndcs <- c("0363-0024", "59368-339", "0173-0695", "0173-0696", "0173-0697", "50090-4505", "50090-4310", "50090-4502", "0173-0715", "0173-0716", "0173-0717", "50090-4504","59310-129", "59310-136", "59310-520", "59310-530", "59310-805", "59310-812", "59310-822", "0363-0881", "11822-0901", "51316-181", "21130-863", "36800-572","41250-634", "53943-006", "64525-6560", "76162-656", "56062-107", "59368-305", "59310-200", "59310-311", "59310-515", "59310-525", "0378-3458", "45802-066","60505-0953", "63629-8612", "72162-1388", "72162-2127", "59368-213", "72288-119", "72288-333", "68391-133", "41520-703", "59368-245", "41520-553", "81522-002","81522-005", "51316-197", "11822-1177", "0363-4023", "21130-607", "0135-0582", "58602-018", "0363-1205", "37808-340", "55910-773", "59368-303", "55910-607","0037-0245", "41163-023", "59368-304", "49035-200", "59368-215", "79903-071", "79903-295", "55301-506", "59368-301", "0135-0576", "0173-0600", "0173-0601","0173-0718", "0173-0719", "0173-0720", "50090-0910", "50090-0916", "50090-0934", "50090-1245", "63187-957", "68788-6926", "57483-180", "68071-1638", "68788-7788","71205-443", "0054-3270", "0168-0332", "0363-0652", "0713-0631", "0713-0632", "11673-262", "30142-258", "37835-997", "45802-221", "45802-222", "45802-441","49035-063", "49035-362", "50090-0968", "50090-1187", "50090-2880", "50090-3513", "50090-6053", "50090-6055", "50090-6058", "50090-6419", "50090-7076", "51672-4095","55700-714", "58602-017", "59368-299", "60429-195", "60505-0829", "60505-0955", "60505-6205", "63187-021", "63187-638", "63187-806", "63187-959", "63629-8658","63629-8659", "63629-8660", "63629-8661", "63629-8662", "63629-8663", "63654-380", "63868-656", "66993-078", "66993-079", "66993-080", "66993-790", "66993-791","66993-792", "67296-1644", "68016-723", "68071-4868", "68196-210", "68196-503", "68462-427", "68788-8446", "68788-8762", "68788-9678", "68998-600", "69168-380","69168-448", "69168-452", "69842-757", "69842-765", "70518-1655", "72162-1401", "72162-1402", "72189-004", "76420-106", "76420-903", "83324-294", "0054-0326","0054-0327", "0054-0328", "0093-3607", "0093-3608", "0093-3609", "0093-7516", "0093-7517", "0093-7518", "50090-3271", "50090-3272", "50090-3387", "50090-4211","50090-4213", "50090-4214", "63629-8809", "63629-8810", "63629-8811", "66993-584", "66993-585", "66993-586", "68788-8453", "68788-8704", "70518-3968", "71205-262","66993-086", "66993-087", "66993-088", "59368-212", "59368-342", "69842-900", "62135-810", "70677-1021", "46122-386", "46122-684", "59368-306", "0113-0028","0113-0285", "59368-307", "67296-1463", "59368-244", "63981-001", "59368-302", "70000-0110", "70000-0703", "59368-243", "37808-205", "0536-1183", "50090-6823","59368-300", "0173-0521", "21130-089", "59368-240", "21130-122", "50594-319", "76162-121", "36800-128", "36800-222", "59368-242", "11673-103", "11673-388","59368-214", "59368-241", "64024-007", "0378-9320", "0378-9321", "0378-9322", "63629-4989", "71143-375")
+
+insulin_human_ndcs <- c("47918-874", "47918-878", "47918-880", "47918-891", "47918-898", "47918-902", "47918-903", "44911-0556", "83027-0023", "83027-0135", "43742-1566", "43742-2064","0002-0213", "0002-8215", "0002-8315", "0002-8501", "0002-8715", "0002-8803", "0002-8805", "0002-8824", "50090-0353", "0338-0126", "0169-1833", "0169-1834","0169-1837", "0169-3003", "0169-3004", "0169-3007", "50090-0403", "50090-6565", "83027-0026", "43742-2048")
+
+metformin_sitagliptin_ndcs <- c("0006-0078", "0006-0080", "0006-0081", "0006-0575", "0006-0577", "50090-5502", "50090-5504", "50090-5616", "0006-0112", "0006-0221", "0006-0277", "50090-1036","50090-3472", "50090-3527", "50090-4084", "50090-4086", "50090-4087", "50090-5547", "50090-5585", "55154-5040", "55154-5042", "70710-1899", "70710-1900", "70710-1901","70771-1790", "70771-1791", "70771-1792", "70710-1986", "70710-1987", "70710-2036", "70710-2037", "70710-2038", "70771-1869", "70771-1870", "70771-1886", "70771-1887","70771-1888", "70710-1786", "70710-1787", "70771-1859", "70771-1860", "70710-1804", "70710-1805", "70710-1806", "70771-1879", "70771-1880", "70771-1881", "70710-1240","70710-1241", "70710-1242", "70771-1770", "70771-1771", "70771-1772")
+
+fluticasone_umeclidinium_vilanterol_ndcs <- c("0173-0887", "0173-0893", "0173-0873", "66993-135", "66993-136","0173-0859", "0173-0882", "0173-0916", "0173-0869")
+
+# Removing 'Amlodipine; Benazepril' as R can't seem to parse all the NDC's regardless of how I format them.
+all_drug_names_ndcs <- all_drug_names_ndcs %>%
+  filter(Drug_Name != "Amlodipine; Benazepril")           
+
+################################################################################
+# Change the NDCs for fuzzy matches for some drugs
+updated_ndcs <- all_drug_names_fuzzy %>%
+  filter(Drug_Name == "Ethinyl Estradiol; Norgestimate") %>%
+  pull(NDCs)
+
+# Update the NDCs in all_drug_names_ndc
+all_drug_names_ndcs <- all_drug_names_ndcs %>%
+  mutate(NDCs = if_else(Drug_Name == "Ethinyl Estradiol; Norgestimate", updated_ndcs, NDCs))%>%
+  mutate(Number_NDCs = sapply(NDCs, length))
+
+################################################################################
+# Update the NDCs for the above drugs
+all_drug_names_ndcs <- all_drug_names_ndcs %>%
+  mutate(
+    NDCs = case_when(
+      Drug_Name == "Albuterol; Ipratropium" ~ list(albuterol_ipratropium_ndcs),
+      Drug_Name == "Alendronate" ~ list(alendronate_ndcs),
+      Drug_Name == "Benazepril" ~ list(benazepril_ndcs),
+      Drug_Name == "Drospirenone; Ethinyl Estradiol" ~ list(drospirenone_ethinyl_estradiol_ndcs),
+      Drug_Name == "Desogestrel; Ethinyl Estradiol" ~ list(desogestrel_ethinyl_estradiol_ndcs),
+      Drug_Name == "Fluticasone; Salmeterol" ~ list(fluticasone_salmeterol_ndcs),
+      Drug_Name == "Insulin Human; Insulin Isophane Human" ~ list(insulin_human_ndcs),
+      Drug_Name == "Fluticasone; Umeclidinium; Vilanterol" ~ list(fluticasone_umeclidinium_vilanterol_ndcs),
+      Drug_Name == "Metformin; Sitagliptin" ~ list(metformin_sitagliptin_ndcs),
+      TRUE ~ NDCs  # Keep existing values for other drugs
+    ),
+    Number_NDCs = sapply(NDCs, length)  
+  )
+```
+
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+(Working) Break out the NDC's for each drug
+```{r}
+# Number of NDCs to expect
+#sum(all_drug_names_ndcs$Number_NDCs, na.rm = TRUE)
+
+drug_ndc_detail <- all_drug_names_ndcs %>%
+  unnest(cols = NDCs) %>%
+  select(Drug_Name, Brand_Names, Generic_Names, NDC = NDCs)
+```
+
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------NDC PACKAGE DATA: CMS NDC-----------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+(Working) Package and 11-digit CMS NDC info for the drugs
+```{r}
+drug_ndc_detail_package <- drug_ndc_detail_package %>%
+  mutate(NDC_Formatted = str_replace_all(NDCPACKAGECODE, "-", " "),  
+         NDC_Formatted = str_split_fixed(NDC_Formatted, " ", 3),     
+         NDC_Formatted = str_pad(NDC_Formatted[,1], 5, pad = "0") %>%
+                    paste0(str_pad(NDC_Formatted[,2], 4, pad = "0"),
+                           str_pad(NDC_Formatted[,3], 2, pad = "0")))
+```
+
+
+This package information was found in the same location as the NDC Product data, and the purpose of joining to it is to see the following fields:
+
+STARTMARKETINGDATE: This is the date that the labeler indicates was the start of its marketing of the drug product.
+
+ENDMARKETINGDATE: This is the date the product will no longer be available on the market. If a product is no longer being manufactured, in most cases, the FDA recommends firms use the expiration date of the last lot produced as the EndMarketingDate, to reflect the potential for drug product to remain available after manufacturing has ceased. Products that are the subject of ongoing manufacturing will not ordinarily have any EndMarketingDate. Products with a value in the EndMarketingDate will be removed from the NDC Directory when the EndMarketingDate is reached.
+
+
+NDC_EXCLUDE_FLAG.
+This indicates whether the PACKAGE has been removed/excluded from the NDC Directory for failure to respond to FDA’s requests for correction to deficient or non-compliant submissions (‘E’), or because the listing certification is expired due to lack of listing certification (‘U’), or because the listing data was inactivated by FDA (‘I’). This data is current as of 07/21/2022
+
+I'm uncertain if the above fields will be needed here, but getting the 11-digit NDC package information is crucial for further analysis and getting pricing information.
+
+https://www.fda.gov/drugs/drug-approvals-and-databases/ndc-package-file-definitions
+
+
+Load in Package file
+```{r}
+# Set file path
+file_path_package <- "C:/Users/Ron/OneDrive/Desktop/Personal - Important/Grad School Stuff/CUNY SPS/DATA 698 Spring 2025/Resources/package.xlsx"
+
+# Load in data
+package_data <- read_excel(file_path_package)
+
+# See which NDC's appear multiple times
+drug_ndc_duplicates <- package_data %>%
+  group_by(PRODUCTNDC) %>%
+  filter(n() > 1) %>%
+  arrange(PRODUCTNDC)
+```
+
+
+I want to create 2 new dataframes based off of drug_ndc_detail and package_data, depending on whether or not they join and get package info
+```{r}
+# Successfully joined rows
+drug_ndc_detail_package <- drug_ndc_detail %>%
+  inner_join(package_data, by = c("NDC" = "PRODUCTNDC"))
+
+# Unmatched rows from drug_ndc_detail
+drug_ndc_detail_package_missing <- drug_ndc_detail %>%
+  anti_join(package_data, by = c("NDC" = "PRODUCTNDC"))
+```
+
+
+drug_ndc_detail has 40,597 rows, 193 of which don't have corresponding NDC's in package_data. Those that do match and appear in the package_data, when joined on drug_ndc_detail creates a one-to-many relationship for drugs. drug_ndc_detail_package has 93,415 rows, which occurs because each PRODUCTNDC has different NDCPACKAGECODES. For example, the NDC 0002-1433 for the drug Dulaglutide, has 2 different package codes: 
+(1) 2 SYRINGE in 1 CARTON / .5 mL in 1 SYRINGE (0002-1433-61)
+(2) 4 SYRINGE in 1 CARTON / .5 mL in 1 SYRINGE (0002-1433-80)
+
+
+It contains the Labeler code (5 digits), Product Code (4 digits), and Package Code (2 digits). Functionally, this means that I might have the same price appear twice for each NDC, but this can be mitigated by looking at the NDC Package Code, if available.
+
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+Now I need to get the list price of drugs, as the rebate value is tied to that. There are several types of drug prices, all with varying levels of accessibility.
+
+
+##### (Publicly Available) ##### 
+- NADAC (National Average Drug Acquisition Cost)	; Estimated real-world price pharmacies pay for drugs  
+[https://data.medicaid.gov/dataset/99315a95-37ac-4eee-946a-3c523b4c481e]
+  
+- FSS / VA pricing                  ;	Federal Supply Schedule / VA negotiated prices	
+- ASP (Average Sales Price)	        ; Used in Medicare Part B reimbursements	
+
+
+##### (License Needed) ##### 
+WAC (Wholesale Acquisition Cost)  	; Manufacturer’s published list price to wholesalers.
+AWP (Average Wholesale Price)	    	; Price the pharmacy pays a wholesaler, but an often inflated benchmark.
+AMP (Average Manufacturer Price)		; Manufacturer-reported average price.
+
+
+
+This website has an interactive Tableau Dashboard for several drugs in my data, including the ACA (Affordable Care Act), NADACB (Brand), NADACG (Generic), WAAMP (Weighted Average of Average Manufacturer prices) Pricing, broken down by NDC as well. I can't verify the integrity of the data as this is a third-party dashboard from Analysource, but one of my research papers used this data acquired from a license from FDB (First Databank)
+https://www.analysource-public.com/drug-price-info/
+https://www.fdbhealth.com/solutions/medknowledge-drug-database/medknowledge-drug-pricing
+
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------NADAC APPROACH----------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+I found this website: (https://data.medicaid.gov/dataset/a217613c-12bc-5137-8b3a-ada0e4dad1ff)
+
+API Functionality: (https://data.medicaid.gov/dataset/a217613c-12bc-5137-8b3a-ada0e4dad1ff#api)
+
+
+[Methodology for calculating NADAC]
+https://www.medicaid.gov/medicaid-chip-program-information/by-topics/prescription-drugs/ful-nadac-downloads/nadacmethodology.pdf
+
+
+This site allows me to search drugs based by NDC Description (Which is effectively Drug_Name and PACKAGEDESCRIPTION together), NDC, and it contains the old NADAC, new NADAC, Percent Change, Start Date, End Date, and Effective Date for these price changes. However, I noticed that the NDC's are formatted differently here. For example, when 'NDC Description' is 'SILDENAFIL 50 MG TABLET', the NDC is '65862069030'. 
+
+However, in my dataframe drug_ndc_detail_package, I have NDC's in this format: 65862-691. I also have NDCPACKAGECODE in this format: 65862-691-01.
+The NADAC website I provided has 11 digits NDC's, which is the standardized NDC format used by CMS (Centers for Medicare and Medicaid Services). As mentioned, this contains the Labeler code (5 digits), Product Code (4 digits), and Package Code (2 digits). NADAC helps CMS determine payment instead of using manufacturer-reported list prices such as WAC or AWP. Additionally, individual State Medicaid agencies use NADAC to determine payment for drug ingredient costs instead of calculating their own Average Acquisition Cost (AAC). More than 40 states utilize NADAC pricing to compute, in part, the ingredient costs of Medicaid-covered outpatient drugs. [https://www.analysource-public.com/drug-price-info/]
+
+Looking at it from a different perspective, I searched drug_ndc_detail_package for all rows when Drug_Name = 'Sildenafil' and got back 551 rows, which are all unique NDCPACKAGECODES. When I search the website for when 'NDC Description' contains 'Sildenafil', I get back 7157 results. This is because it contains all the different NADAC's for all those products.
+
+For example, I checked drug_ndc_detail_package for for all rows when Drug_Name = 'Sildenafil', and when 'NDC' = '13668-185', I get back 5 rows. One of those rows has NDCPACKAGECODE = '13668-185-90'. The NADAC website does in fact have results for when NDC = '13668018590'. Another example, when NDCPACKAGECODE = 13668-185-05, I see a corresponding NDC for 13668018505. It seems that these are actually identical, just formatted a bit differently.
+
+For another example, I checked my dataframe for when NDC = 99207, and I have 2 rows. These rows have NDC = '99207-300', and NDCPACKAGECODE = '99207-300-30' and '99207-300-60'. I checked the website for when NDC starts with 99207 and contains 300, and I do Indeed see results for when NDC = '99207030030' or NDC = '99207030060'. This confirms what I saw in my first example above, that this website does have the data I need, in a different format.
+
+First, I will make a new column in drug_ndc_detail_package called 'NDC_Formatted', which simply changes NDCPACKAGECODE to match the format of the website NDCs. So if NDCPACKAGECODE = '99207-300-30, then NDC_Formatted should be 99207030030 . If NDCPACKAGECODE = '13668-185-05', then  NDC_Formatted should be 13668018505.
+
+
+(Working) Reformat base NDC to the standard 11-digit CMS NDC
+[This was included twice, I think formatting issues]
+```{r}
+drug_ndc_detail_package <- drug_ndc_detail_package %>%
+  mutate(NDC_Formatted = str_replace_all(NDCPACKAGECODE, "-", " "),  
+         NDC_Formatted = str_split_fixed(NDC_Formatted, " ", 3),     
+         NDC_Formatted = str_pad(NDC_Formatted[,1], 5, pad = "0") %>%
+                    paste0(str_pad(NDC_Formatted[,2], 4, pad = "0"),
+                           str_pad(NDC_Formatted[,3], 2, pad = "0")))
+```
+
+
+As the NADAC dataset is too large and contains 2.7 million rows, I'll need API functionality to call just the NDC's I need
+```{r}
+library(httr)
+library(jsonlite)
+library(dplyr)
+
+# Define API URL
+url <- "https://data.medicaid.gov/api/1/metastore/schemas"
+
+# Make GET request
+response <- GET(url, add_headers("Content-Type" = "application/json"))
+
+# Check the status code to ensure the request was successful
+if (status_code(response) == 200) {
+  # Parse the response to JSON
+  data <- content(response, "text")
+  json_data <- fromJSON(data)
+  
+  # Print out the schema details
+  print(json_data)
+} else {
+  print(paste("Error: ", status_code(response)))
+}
+
+#str(json_data)
+```
+
+
+I'm looking for the dataset that has these fields:
+
+    ndc_description
+    ndc
+    old_nadac_per_unit
+    new_nadac_per_unit
+    classification_for_rate_setting (un-needed)
+    percent_change (un-needed)
+    primary_reason (un-needed)
+    start_date (un-needed)
+    end_date (un-needed)
+    effective_date
+
+
+
+Using the specific API call found from the NADAC website, this returns the metadata for the NADAC dataset.
+```{r}
+url <- "https://data.medicaid.gov/api/1/metastore/schemas/dataset/items/a217613c-12bc-5137-8b3a-ada0e4dad1ff?show-reference-ids=true"
+resp <- GET(url)
+json_data <- content(resp, as = "parsed", type = "application/json")
+
+#str(json_data)
+```
+
+
+NADAC dataset UUID is a217613c-12bc-5137-8b3a-ada0e4dad1ff
+NADAC distribution UUID is 249402d0-482f-5201-8651-b3a71398ff49 
+
+
+(Working) Query for first N rows
+```{r}
+# Query from API on specific NDC
+# https://data.medicaid.gov/api/1/datastore/sql?query=[SELECT * FROM a217613c-12bc-5137-8b3a-ada0e4dad1ff][WHERE NDC = "00071015723"][LIMIT 100];&show_db_columns
+
+# Query to get first 100 records 
+# https://data.medicaid.gov/api/1/datastore/sql?query=[SELECT * FROM a217613c-12bc-5137-8b3a-ada0e4dad1ff][LIMIT 100];&show_db_columns
+
+
+NADAC_distribution_UUID <- "249402d0-482f-5201-8651-b3a71398ff49"
+
+# SQL query - first 5 rows 
+sql_query <- URLencode(
+  paste0("[SELECT * FROM ", NADAC_distribution_UUID, "][LIMIT 5]")
+)
+
+# API URL
+url <- paste0("https://data.medicaid.gov/api/1/datastore/sql?query=", sql_query, "&show_db_columns")
+
+# Make request
+response <- GET(url)
+
+# Handle result
+if (status_code(response) == 200) {
+  result <- content(response, "parsed")
+  print(result)
+} else {
+  print(paste("Failed to retrieve data. Status code:", status_code(response)))
+  print(content(response, "text", encoding = "UTF-8"))
+}
+```
+
+
+(Working) Query all data for all rows for specific NDC.
+```{r}
+library(httr)
+library(jsonlite)
+
+ndc_val <- "00378451393"  
+base_url <- "https://data.medicaid.gov/api/1/datastore/sql"
+NADAC_distribution_UUID <- "249402d0-482f-5201-8651-b3a71398ff49"
+
+# Build and encode the query
+query <- paste0(
+  "[SELECT ndc_description,ndc,old_nadac_per_unit,new_nadac_per_unit,classification_for_rate_setting,percent_change,primary_reason,",
+  "start_date,end_date,effective_date FROM ", NADAC_distribution_UUID, "]",
+  "[WHERE ndc = \"", ndc_val, "\"]"
+  #"[LIMIT 10]"  #If I only want specific number of rows
+)
+
+# Classification for Rate Setting represents the classification as one of the following: Brand (‘B’) or Generic (‘G’). Drug category and drug category override status are both used to determine the Classification for Rate Setting for each NDC
+
+
+# Encode and make request
+encoded_query <- URLencode(query, reserved = TRUE)
+full_url <- paste0(base_url, "?query=", encoded_query)
+# `res` is response object
+res <- GET(full_url)
+
+# Output status and result
+#print(status_code(res))
+#print(content(res, as = "text"))
+
+
+# Convert JSON string to dataframe
+json_text <- content(res, as = "text", encoding = "UTF-8")
+query_result <- fromJSON(json_text)
+query_result_df <- as.data.frame(query_result)
+
+# Convert 'Effective Date' to Date type
+query_result_df$`Effective Date` <- as.Date(query_result_df$`Effective Date`)
+
+# Sort by descending Effective Date
+query_result_sorted <- query_result_df[order(query_result_df$`Effective Date`, decreasing = TRUE), ]
+print(query_result_sorted)
+```
+
+Unfortunately, the API doesn't have functionality to filter data based on the date fields, which would have sped up the server-side process to exclude data past 2022. I will pull all data for every NDC, and then filter later.
+
+
+(Working) Query all data for all rows for specific NDC, annual-level averages
+```{r}
+library(httr)
+library(jsonlite)
+library(dplyr)
+
+ndc_val <- "00378451393"  
+base_url <- "https://data.medicaid.gov/api/1/datastore/sql"
+NADAC_distribution_UUID <- "249402d0-482f-5201-8651-b3a71398ff49"
+
+# Build and encode the query
+query <- paste0(
+  "[SELECT ndc_description,ndc,old_nadac_per_unit,new_nadac_per_unit,end_date,effective_date FROM ", NADAC_distribution_UUID, "]",
+  "[WHERE ndc = \"", ndc_val, "\"]"
+)
+
+# Encode and make request
+encoded_query <- URLencode(query, reserved = TRUE)
+full_url <- paste0(base_url, "?query=", encoded_query)
+res <- GET(full_url)
+
+# Parse the response
+json_text <- content(res, as = "text", encoding = "UTF-8")
+query_result <- fromJSON(json_text)
+
+# Convert to data frame
+query_result_df <- as.data.frame(query_result)
+query_result_df$`Effective Date` <- as.Date(query_result_df$`Effective Date`)
+query_result_df$`End Date` <- as.Date(query_result_df$`End Date`)
+
+
+# Use Effective Date if available, otherwise fallback to End Date
+query_result_df$Year <- ifelse(!is.na(query_result_df$`Effective Date`),
+                               format(query_result_df$`Effective Date`, "%Y"),
+                               format(query_result_df$`End Date`, "%Y"))
+
+# Sort by descending year
+query_result_sorted <- query_result_df[order(query_result_df$`Year`, decreasing = TRUE), ]
+#print(query_result_sorted)
+
+################################################################################
+#Yearly Averages 
+
+query_result_df$`Old NADAC Per Unit` <- as.numeric(query_result_df$`Old NADAC Per Unit`)
+query_result_df$`New NADAC Per Unit` <- as.numeric(query_result_df$`New NADAC Per Unit`)
+
+# Group by year and compute average values
+avg_by_year <- query_result_df %>%
+  group_by(Year) %>%
+  summarise(
+    Avg_Old_NADAC = mean(`Old NADAC Per Unit`, na.rm = TRUE),
+    Avg_New_NADAC = mean(`New NADAC Per Unit`, na.rm = TRUE)
+  ) %>%
+  mutate(
+    Average_NADAC = (Avg_Old_NADAC + Avg_New_NADAC) / 2
+  ) %>%
+  arrange(desc(Year))
+
+# Print yearly averages
+print(avg_by_year)
+```
+
+
+Regarding outliers, the NDC 65862069030 had these values for 'Old NADAC Per Unit' in 2018.
+
+0.69238 	12/19/2018
+0.61767 	11/21/2018
+0.66538 	10/17/2018
+25.97022  9/19/2018
+
+The record on 9/19/2018 is far too high compared to all the other observations for this field in the entire data for NDC 65862069030, which ranges normally from 0.08516 to 0.66538. Any outlier values that are  much larger than all other values (for either the old NADAC per unit or new NADAC per unit) can throw off the estimates for future forecasting. That high value could represent a real, albeit temporary price change, a special pricing period due to brand/generic switches or even supply shortages. Outliers can alert the model that certain drugs/NDC's experience more volatility and price fluctuations or manipulations.
+
+
+(Working) Call API for all rows for specific NDC, annual-level averages, with IQR-based outlier detection
+```{r}
+library(httr)
+library(jsonlite)
+library(dplyr)
+
+ndc_val <- "00378451393"  
+base_url <- "https://data.medicaid.gov/api/1/datastore/sql"
+NADAC_distribution_UUID <- "249402d0-482f-5201-8651-b3a71398ff49"
+
+# Build and encode the query
+query <- paste0(
+  "[SELECT ndc_description,ndc,old_nadac_per_unit,new_nadac_per_unit,end_date,effective_date FROM ", NADAC_distribution_UUID, "]",
+  "[WHERE ndc = \"", ndc_val, "\"]"
+)
+# Encode and make request
+encoded_query <- URLencode(query, reserved = TRUE)
+full_url <- paste0(base_url, "?query=", encoded_query)
+res <- GET(full_url)
+
+# Parse the response
+json_text <- content(res, as = "text", encoding = "UTF-8")
+query_result <- fromJSON(json_text)
+
+# Convert to data frame
+query_result_df <- as.data.frame(query_result)
+query_result_df$`Effective Date` <- as.Date(query_result_df$`Effective Date`)
+query_result_df$`End Date` <- as.Date(query_result_df$`End Date`)
+
+# Use Effective Date if available, otherwise fallback to End Date
+query_result_df$Year <- ifelse(!is.na(query_result_df$`Effective Date`),
+                               format(query_result_df$`Effective Date`, "%Y"),
+                               format(query_result_df$`End Date`, "%Y"))
+
+# Sort by descending year
+query_result_sorted <- query_result_df[order(query_result_df$`Year`, decreasing = TRUE), ]
+
+# Print sorted result
+#print(query_result_sorted)
+
+################################################################################
+#Yearly Averages 
+
+# Convert NADAC columns to numeric
+query_result_df$`Old NADAC Per Unit` <- as.numeric(query_result_df$`Old NADAC Per Unit`)
+query_result_df$`New NADAC Per Unit` <- as.numeric(query_result_df$`New NADAC Per Unit`)
+
+# Group by year and compute average values
+avg_by_year <- query_result_df %>%
+  mutate(NDC = ndc_val) %>%  
+  # Group by both Year and NDC
+  group_by(Year, NDC) %>%    
+  summarise(
+    Avg_Old_NADAC = mean(`Old NADAC Per Unit`, na.rm = TRUE),
+    Avg_New_NADAC = mean(`New NADAC Per Unit`, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(Average_NADAC = (Avg_Old_NADAC + Avg_New_NADAC) / 2)
+
+
+# Detect outliers via IQR method
+detect_outliers_iqr <- function(x) {
+  q1 <- quantile(x, 0.25, na.rm = TRUE)
+  q3 <- quantile(x, 0.75, na.rm = TRUE)
+  iqr <- q3 - q1
+  lower <- q1 - 1.5 * iqr
+  upper <- q3 + 1.5 * iqr
+  return(x < lower | x > upper)
+}
+
+
+# Apply outlier detection
+avg_by_year <- avg_by_year %>%
+  mutate(
+    Old_NADAC_Outlier = detect_outliers_iqr(Avg_Old_NADAC),
+    New_NADAC_Outlier = detect_outliers_iqr(Avg_New_NADAC)
+  ) %>%
+  select(NDC, everything()) %>%  
+  arrange(desc(Year))
+
+
+print(avg_by_year)
+```
+
+
+Now we move to a crucial step- I want to repeat the above exercise, for every NDC_Formatted in drug_ndc_detail_package. Earlier when I ran this code to get the old and new NADAC per units, it took 6 hours for 4,850 NDC's out of 93,415. It took so long because each NDC_Formatted could have any number of rows inside the NADAC dataset. However, since we are doing annual-level averages, my hope is that this works faster, rather than returning every single row for each NDC. 
+
+Additionally, to make this faster, I will attempt to use parallelization for this process so that my computer uses more cores.
+
+
+(Working) Run the above API call for every NDC_Formatted in drug_ndc_detail_package in batches with parallelization.
+[[[LONG RUN TIME]]] Each batch of 1000 NDC's takes about 15-18 minutes to run, so altogether about 27 hours for the 93,415 NDC's.
+```{r}
+library(httr)
+library(jsonlite)
+library(dplyr)
+library(purrr)
+library(furrr)
+
+# Set up parallel processing
+plan(multisession, workers = parallel::detectCores() - 1)
+
+# Base URL and dataset UUID
+base_url <- "https://data.medicaid.gov/api/1/datastore/sql"
+NADAC_distribution_UUID <- "249402d0-482f-5201-8651-b3a71398ff49"
+
+# Define save directory
+save_dir <- "C:/Users/Ron/OneDrive/Desktop/Personal - Important/Grad School Stuff/CUNY SPS/DATA 698 Spring 2025/NADAC_Batches"
+dir.create(save_dir, showWarnings = FALSE, recursive = TRUE)
+
+# Get yearly NADAC averages for a NDC
+get_ndc_avg_data <- function(ndc_val) {
+  query <- paste0(
+    "[SELECT ndc_description,ndc,old_nadac_per_unit,new_nadac_per_unit,effective_date,end_date FROM ", NADAC_distribution_UUID, "]",
+    "[WHERE ndc = \"", ndc_val, "\"]"
+  )
+
+  encoded_query <- URLencode(query, reserved = TRUE)
+  full_url <- paste0(base_url, "?query=", encoded_query)
+
+  res <- try(GET(full_url), silent = TRUE)
+  if (inherits(res, "try-error") || status_code(res) != 200) return(NULL)
+
+  json_text <- content(res, as = "text", encoding = "UTF-8")
+  query_result <- fromJSON(json_text)
+  df <- as.data.frame(query_result)
+
+  if (nrow(df) == 0) return(NULL)
+
+  #Date fields for annual-level averages
+  df$`Effective Date` <- as.Date(df$`Effective Date`)
+  df$`End Date` <- as.Date(df$`End Date`)
+  df$Year <- ifelse(!is.na(df$`Effective Date`),
+                    format(df$`Effective Date`, "%Y"),
+                    format(df$`End Date`, "%Y"))
+
+  df$`Old NADAC Per Unit` <- as.numeric(df$`Old NADAC Per Unit`)
+  df$`New NADAC Per Unit` <- as.numeric(df$`New NADAC Per Unit`)
+
+  # Group and average
+  yearly <- df %>%
+    group_by(Year) %>%
+    summarise(
+      Avg_Old_NADAC = mean(`Old NADAC Per Unit`, na.rm = TRUE),
+      Avg_New_NADAC = mean(`New NADAC Per Unit`, na.rm = TRUE)
+    ) %>%
+    mutate(
+      Average_NADAC = (Avg_Old_NADAC + Avg_New_NADAC) / 2,
+      NDC = ndc_val
+    ) %>%
+    relocate(NDC, .before = everything())
+
+  # IQR-based outlier detection
+  iqr_old <- IQR(yearly$Avg_Old_NADAC, na.rm = TRUE)
+  iqr_new <- IQR(yearly$Avg_New_NADAC, na.rm = TRUE)
+  q1_old <- quantile(yearly$Avg_Old_NADAC, 0.25, na.rm = TRUE)
+  q3_old <- quantile(yearly$Avg_Old_NADAC, 0.75, na.rm = TRUE)
+  q1_new <- quantile(yearly$Avg_New_NADAC, 0.25, na.rm = TRUE)
+  q3_new <- quantile(yearly$Avg_New_NADAC, 0.75, na.rm = TRUE)
+
+  yearly <- yearly %>%
+    mutate(
+      Old_NADAC_Outlier = Avg_Old_NADAC < (q1_old - 1.5 * iqr_old) | Avg_Old_NADAC > (q3_old + 1.5 * iqr_old),
+      New_NADAC_Outlier = Avg_New_NADAC < (q1_new - 1.5 * iqr_new) | Avg_New_NADAC > (q3_new + 1.5 * iqr_new)
+    )
+
+  return(yearly)
+}
+
+# Define full list of NDCs
+ndc_all <- drug_ndc_detail_package$NDC_Formatted
+
+# Split NDCs into batches of 1000
+ndc_batches <- split(ndc_all, ceiling(seq_along(ndc_all) / 1000))
+
+# Loop through batches
+for (i in seq_along(ndc_batches)) {
+  batch_ndcs <- ndc_batches[[i]]
+  csv_file <- file.path(save_dir, sprintf("ndc_nadac_averages_batch_%03d.csv", i))
+  rds_file <- file.path(save_dir, sprintf("ndc_nadac_averages_batch_%03d.rds", i))
+
+  # Skip batch if already processed
+  if (file.exists(csv_file) && file.exists(rds_file)) {
+    cat(sprintf("Skipping batch %d — already processed.\n", i))
+    next
+  }
+
+  cat(sprintf("Processing batch %d of %d...\n", i, length(ndc_batches)))
+  start_time <- Sys.time()
+
+  # Run in parallel
+  results_list <- future_map(batch_ndcs, get_ndc_avg_data, .progress = TRUE)
+  batch_df <- bind_rows(results_list)
+
+  # Save CSV and RDS
+  write.csv(batch_df, csv_file, row.names = FALSE)
+  saveRDS(batch_df, rds_file)
+
+  end_time <- Sys.time()
+  time_taken <- round(as.numeric(difftime(end_time, start_time, units = "mins")), 2)
+  cat(sprintf("Batch %d done in %s minutes. Rows: %d\n", i, time_taken, nrow(batch_df)))
+
+  # Pause 30 seconds between batches
+  if (i < length(ndc_batches)) {
+    cat("Pausing for 30 seconds...\n")
+    Sys.sleep(30)
+  }
+}
+```
+
+
+
+(Working) Read in the 94 created batch files, combine them, and exclude any data past 2022
+```{r}
+library(readxl)
+library(writexl)
+library(dplyr)
+library(stringr)
+
+# Define file path
+folder_path <- "C:/Users/Ron/OneDrive/Desktop/Personal - Important/Grad School Stuff/CUNY SPS/DATA 698 Spring 2025/NADAC_Batches"
+file_list <- list.files(path = folder_path, pattern = "^ndc_nadac_averages_batch_\\d{3}\\.csv$", full.names = TRUE)
+
+# Read and combine all batch CSV files
+all_nadac_data <- map_dfr(file_list, ~{
+  message("Reading: ", .x)
+  read_csv(.x, col_types = cols(.default = col_character()), show_col_types = FALSE) %>%
+    rename_with(tolower)
+})
+
+
+# Filter out 2023 and later
+all_nadac_data_2013_2022 <- all_nadac_data %>%
+  filter(year < 2023) %>%
+  mutate(ndc = str_pad(as.character(ndc), width = 11, side = "left", pad = "0"))
+
+
+# Preserve leading 0's in Excel
+#all_nadac_data_2013_2022_file <- all_nadac_data_2013_2022 %>%
+#  mutate(ndc = paste0("'", ndc))
+#write_csv(all_nadac_data_2013_2022_file, file.path(folder_path, "ndc_nadac_averages_batch_total.csv"), quote = "needed")
+
+
+################################################################################
+# Load in file if needed
+#all_nadac_data_2013_2022 <- read_csv("./ndc_nadac_averages_batch_total.csv")
+
+# Remove leading quote from Excel file for leading 0's
+#all_nadac_data_2013_2022 <- all_nadac_data_2013_2022 %>%
+#  mutate(ndc = sub("^'", "", ndc))
+```
+
+
+After combining the outputs of the API calls, I am left with a dataframe of 146,554 rows, which after excluding any NADAC average values past 2022, I am left with 95,134 rows. Now we come to the next step, to join everything together. I will do so on drug_ndc_detail_package NDC_Formatted and all_nadac_data_2013_2022 ndc, which are the same field in the 11-digit length format. This will create one-to-many relationships, but give me the granularity I want to see as for each NDC's NADAC values change.
+
+
+(Working) Join the two frames together to have CMS NDC, NADACs over the years
+```{r}
+library(dplyr)
+
+drug_ndc_nadac_2013_2022 <- drug_ndc_detail_package %>%
+  inner_join(
+    all_nadac_data_2013_2022 %>%
+      select(
+        ndc,
+        year,
+        avg_old_nadac,
+        avg_new_nadac,
+        average_nadac,
+        old_nadac_outlier,
+        new_nadac_outlier
+      ),
+    by = c("NDC_Formatted" = "ndc")
+  )
+
+```
+
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------AWP vs NADAC---------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Generic Drugs
+    AWP is typically 3x to 10x higher than NADAC.
+    Median markup: Around 4x to 6x (300–500% markup)
+    OIG Report (2013): AWP was on average 6 times higher than NADAC for generic drugs
+    GAO Analysis: AWP exceeded NADAC by over 500% for most prescribed generic drugs
+
+Brand Drugs
+    AWP is typically 1.2x to 1.5x higher than NADAC.
+    MACPAC (2021): NADAC for brand drugs was often 20% to 30% lower than AWP.
+    Drug Channels Institute: For high-cost brand-name drugs, NADAC is closer to WAC, while AWP remains markedly higher, but less variation than generics.
+
+Drug Type	  AWP:NADAC Ratio   	Typical Markup
+Generic	    3:1 to 10:1	        200%–900%
+Brand	      1.2:1 to 1.5:1    	20%–50%
+
+
+I want to specify which drugs are brands and which are generics. I will recycle my Get_NDCs_For_Drug function
+
+(Working) Modified NDCS function, to get brand and generic for each drug
+```{r}
+Get_NDCs_For_Drug_Type <- function(drug_name, ndc_data, name_lookup_table) {
+  # Find the row for this drug_name
+  drug_row <- name_lookup_table %>% filter(Drug_Name == drug_name)
+
+  if (nrow(drug_row) == 0) {
+    warning(paste("Drug name", drug_name, "not found in name_lookup_table"))
+    return(list(Brand_NDCs = character(0), Generic_NDCs = character(0)))
+  }
+
+  # Clean and split Brand/Generic Names
+  brand_terms <- str_split(drug_row$Brand_Names, ",")[[1]] %>% str_trim() %>% tolower()
+  generic_terms <- str_split(drug_row$Generic_Names, ",")[[1]] %>% str_trim() %>% tolower()
+
+  # Lowercase NDC data for consistent matching
+  ndc_data_clean <- ndc_data %>%
+    mutate(across(c(PROPRIETARYNAME, NONPROPRIETARYNAME, SUBSTANCENAME), tolower))
+
+  # Get Brand NDCs by matching only in PROPRIETARYNAME
+  brand_ndcs <- ndc_data_clean %>%
+    filter(PROPRIETARYNAME %in% brand_terms) %>%
+    pull(PRODUCTNDC) %>%
+    unique()
+
+  # Get Generic NDCs by matching in NONPROPRIETARYNAME or SUBSTANCENAME
+  generic_ndcs <- ndc_data_clean %>%
+    filter(NONPROPRIETARYNAME %in% generic_terms | 
+           str_detect(SUBSTANCENAME, paste(generic_terms, collapse = "|"))) %>%
+    pull(PRODUCTNDC) %>%
+    unique()
+
+  # Exclude any NDCs that are in brand_ndcs from generic_ndcs
+  generic_ndcs <- setdiff(generic_ndcs, brand_ndcs)
+
+  return(list(Brand_NDCs = brand_ndcs, Generic_NDCs = generic_ndcs))
+}
+
+################################################################################
+# Run it for all_drug_names to get specific NDCs for brand and generic
+all_drug_names_ndcs <- all_drug_names_ndcs %>%
+  rowwise() %>%
+  mutate(
+    ndcs = list(Get_NDCs_For_Drug_Type(Drug_Name, ndc_data, all_drug_names_ndcs)),
+    Brand_NDCs = list(ndcs$Brand_NDCs),
+    Generic_NDCs = list(ndcs$Generic_NDCs),
+    Number_Brand_NDCs = length(ndcs$Brand_NDCs),
+    Number_Generic_NDCs = length(ndcs$Generic_NDCs)
+  ) %>%
+  select(-ndcs) %>%
+  ungroup()
+
+# Due to mismatched drug name criteria, the Number_Brand_NDCs, Number_Generic_NDCs don't align with Number_NDCs. This was likely from a broader, earlier step where I matched both brands and generics against the proprietary, non-proprietary, and substance names. 
+all_drug_names_ndcs <- all_drug_names_ndcs %>%
+  select(-NDCs, -Number_NDCs)
+```
+
+
+(Working) Pull the standard NDC from the CMS NDC
+```{r}
+# Rename and prepare the main dataframe
+all_ndc_nadac_awp_2013_2022 <- all_nadac_data_2013_2022 %>%
+  rename(ndc_11 = ndc)  # Rename original 11-digit NDC column
+
+# Join with the drug_ndc_nadac_2013_2022 to get standard-format NDC
+all_ndc_nadac_awp_2013_2022 <- all_ndc_nadac_awp_2013_2022 %>%
+  left_join(
+    drug_ndc_nadac_2013_2022 %>%
+      select(ndc_standard = NDC, ndc_11 = NDC_Formatted) %>%
+      distinct(),
+    by = "ndc_11"
+  ) %>%
+  relocate(ndc_standard, .after = ndc_11)  # Move new column to 2nd position
+```
+
+
+(Working) Determine if an NDC is brand or generic, in order to create an appropriate AWP:NADAC ratio
+```{r}
+#Unnest Brand and Generic NDCs into a long format
+ndc_brand_generic_map <- all_drug_names_ndcs %>%
+  select(Drug_Name, Brand_NDCs, Generic_NDCs) %>%
+  mutate(
+    Brand_NDCs = lapply(Brand_NDCs, unique),
+    Generic_NDCs = lapply(Generic_NDCs, unique)
+  ) %>%
+  pivot_longer(cols = c(Brand_NDCs, Generic_NDCs), names_to = "ndc_category", values_to = "ndc_list") %>%
+  unnest(ndc_list) %>%
+  rename(ndc_standard = ndc_list) %>%
+  mutate(ndc_category = ifelse(ndc_category == "Brand_NDCs", "Brand", "Generic")) %>%
+  distinct(ndc_standard, ndc_category)
+
+# Join mapping to main dataframe
+all_ndc_nadac_awp_2013_2022 <- all_ndc_nadac_awp_2013_2022 %>%
+  left_join(ndc_brand_generic_map, by = "ndc_standard")
+
+# Remove those with no category
+all_ndc_nadac_awp_2013_2022 <- all_ndc_nadac_awp_2013_2022 %>%
+  filter(!is.na(ndc_category))
+
+################################################################################
+# Pull in Drug Name
+ndc_to_drug_mapping <- all_drug_names_ndcs %>%
+  select(Drug_Name, Brand_NDCs, Generic_NDCs) %>%
+  mutate(
+    Brand = map(Brand_NDCs, ~ tibble(ndc_standard = .x, ndc_category = "Brand")),
+    Generic = map(Generic_NDCs, ~ tibble(ndc_standard = .x, ndc_category = "Generic"))
+  ) %>%
+  select(Drug_Name, Brand, Generic) %>%
+  pivot_longer(cols = c(Brand, Generic), names_to = "source", values_to = "ndc_list") %>%
+  unnest(ndc_list)
+
+all_ndc_nadac_awp_2013_2022 <- all_ndc_nadac_awp_2013_2022 %>%
+  left_join(ndc_to_drug_mapping, by = c("ndc_standard", "ndc_category"))
+
+# To verify if any rows didn't match a drug name:
+#all_ndc_nadac_awp_2013_2022 %>%
+#  filter(is.na(Drug_Name)) %>%
+#  count(ndc_category)
+```
+
+This gives me 1427 NDCs with NA in ndc_category. This is likely because these NDCs were returned by the Medicaid NADAC API, but don't exist in the curated Brand_NDCs or Generic_NDCs. The NADAC API can return a broad set of NDCs, including OTC drugs, Obsolete/inactive drugs (hence not in the FDA NDC dataset).
+
+
+(Working) Create an average AWP based off average_nadac and brand/generic category
+```{r}
+all_ndc_nadac_awp_2013_2022 <- all_ndc_nadac_awp_2013_2022 %>%
+  mutate(
+    average_nadac = as.numeric(average_nadac),  # ensure numeric for math
+    average_awp = case_when(
+      ndc_category == "Generic" ~ 6.5 * average_nadac,
+      ndc_category == "Brand" ~ 1.35 * average_nadac
+    )
+  )
+
+# Reorder columns
+all_ndc_nadac_awp_2013_2022 <- all_ndc_nadac_awp_2013_2022 %>%
+  select(Drug_Name,ndc_11,ndc_standard,ndc_category,year,avg_old_nadac,avg_new_nadac,average_nadac,old_nadac_outlier,new_nadac_outlier,average_awp)
+```
+
+
+Now that I have estimates for AWP, which is a very commonly used pricing benchmark and 'list price' (along with WAC), I can estimate a rebate percentage value. AWP is derived from wholesale pricing data, and not set directly by manufacturers. AWP:WAC ratio is 1.2:1 after 2009 
+
+https://www.smithrx.com/blog/awp-vs-wac-whats-the-difference
+https://www.drugs.com/article/average-wholesale-price-awp.html
+
+
+(Working) Estimate average WAC based off AWP
+```{r}
+all_ndc_nadac_awp_2013_2022 <- all_ndc_nadac_awp_2013_2022 %>%
+  mutate(
+    average_wac = average_awp / 1.2
+  )
+```
+
+
+(Working) Create estimates for rebates based off of WAC using USC Schaeffer Center's rebate regression model
+```{r}
+all_ndc_nadac_awp_2013_2022 <- all_ndc_nadac_awp_2013_2022 %>%
+  mutate(
+    rebate_min = 0.69 * average_wac,
+    rebate_avg = 1.17 * average_wac,
+    rebate_max = 1.66 * average_wac
+  )
+```
+
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------PLOT---------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+(Old) Overall plot
+```{r}
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(scales)
+
+# Prepare data 
+plot_data_overall <- all_ndc_nadac_awp_2013_2022 %>%
+  filter(Drug_Name == "Atorvastatin") %>%
+  mutate(year = as.integer(year)) %>%
+  group_by(year) %>%
+  summarise(
+    average_nadac = mean(average_nadac, na.rm = TRUE),
+    average_awp = mean(average_awp, na.rm = TRUE),
+    average_wac = mean(average_wac, na.rm = TRUE),
+    rebate_min = mean(rebate_min, na.rm = TRUE),
+    rebate_avg = mean(rebate_avg, na.rm = TRUE),
+    rebate_max = mean(rebate_max, na.rm = TRUE)
+  ) %>%
+  pivot_longer(cols = -year, names_to = "metric", values_to = "value")
+
+# Plot
+ggplot(plot_data_overall, aes(x = year, y = value, color = metric)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) +
+  scale_y_continuous(labels = label_number(accuracy = 0.01)) +
+  labs(title = "Overall Price and Rebate Trends (2013–2022)",x = "Year",y = "Price ($/Unit)",color = "Metric") +
+  theme_minimal() +
+  theme(legend.position = "bottom", axis.text = element_text(size = 9), plot.title = element_text(size = 12, face = "bold"))
+
+```
+
+
+(Old) Faceted Plot 
+```{r}
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(scales)
+
+# Prepare the faceted data
+plot_data_facet <- all_ndc_nadac_awp_2013_2022 %>%
+  filter(Drug_Name == "Atorvastatin") %>%
+  mutate(year = as.integer(year)) %>%
+  group_by(year, ndc_standard) %>%
+  summarise(
+    average_nadac = mean(average_nadac, na.rm = TRUE),
+    average_awp = mean(average_awp, na.rm = TRUE),
+    average_wac = mean(average_wac, na.rm = TRUE),
+    rebate_min = mean(rebate_min, na.rm = TRUE),
+    rebate_avg = mean(rebate_avg, na.rm = TRUE),
+    rebate_max = mean(rebate_max, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  pivot_longer(cols = -c(year, ndc_standard),names_to = "metric",values_to = "value")
+
+# Plot with facets
+ggplot(plot_data_facet, aes(x = year, y = value, color = metric)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 1.5) +
+  facet_wrap(~ ndc_standard, scales = "free_y") +
+  scale_y_continuous(labels = label_number(accuracy = 0.01)) +
+  labs(title = "Price and Rebate Trends by NDC (2013–2022)",x = "Year",y = "Price ($/Unit)",color = "Metric") +
+  theme_minimal() +
+  theme(legend.position = "bottom",strip.text = element_text(size = 8),axis.text = element_text(size = 7),plot.title = element_text(size = 12, face = "bold"))
+
+```
+
+
+(Old) Loop through and get plots for every drug
+```{r}
+# Define output directory
+output_dir <- "C:/Users/Ron/OneDrive/Desktop/Personal - Important/Grad School Stuff/CUNY SPS/DATA 698 Spring 2025/NADAC_Plots"
+
+################################################################################
+# Loop through distinct Drug_Name values
+for (drug in unique(drug_ndc_nadac_2013_2022$Drug_Name)) {
+  
+  # Prepare data for faceted plot
+  plot_data_faceted <- drug_ndc_nadac_2013_2022 %>%
+    filter(Drug_Name == drug) %>%
+    mutate(
+      average_nadac = round(as.numeric(average_nadac), 2),
+      year = as.integer(year)
+    ) %>%
+    group_by(NDC) %>%
+    # Only show the top and bottom values on the y-axis
+    filter(average_nadac == max(average_nadac, na.rm = TRUE) |
+           average_nadac == min(average_nadac, na.rm = TRUE)
+    ) %>%
+    ungroup()
+
+  # Faceted plot
+  p_faceted <- ggplot(plot_data_faceted, aes(x = year, y = average_nadac)) +
+    geom_line(aes(group = NDC), color = "steelblue", linewidth = 1) +
+    geom_point(color = "darkred", size = 2) +
+    facet_wrap(~ NDC, scales = "free_y") +
+    scale_y_continuous(breaks = function(lims) lims, labels = label_number(accuracy = 0.01)) +
+    labs(title = paste(drug, "Average NADACs by NDC")) + 
+    theme_minimal() +
+    theme(axis.text.y = element_text(size = 8),strip.text = element_text(face = "bold"),
+          axis.title.x = element_blank(), axis.title.y = element_blank())
+
+  # Save faceted plot
+  ggsave(file.path(output_dir, paste0(drug, "_Facet.png")), plot = p_faceted, width = 10, height = 6)
+
+################################################################################
+  # Prepare data for overall plot (without faceting)
+  plot_data_overall <- drug_ndc_nadac_2013_2022 %>%
+    filter(Drug_Name == drug) %>%
+    mutate(average_nadac = round(as.numeric(average_nadac), 2),
+           year = as.integer(year)) %>%
+    group_by(Drug_Name, year) %>%
+    summarise(average_nadac = mean(average_nadac, na.rm = TRUE))
+
+  # Overall plot
+  p_overall <- ggplot(plot_data_overall, aes(x = year, y = average_nadac)) +
+    geom_line(color = "steelblue", linewidth = 1) +
+    geom_point(color = "darkred", size = 2) +
+    scale_y_continuous(labels = label_number(accuracy = 0.01)) +
+    labs(title = paste(drug, "Average NADAC Overall")) + 
+    theme_minimal() +
+    theme(axis.text.y = element_text(size = 8), axis.title.x = element_blank(), axis.title.y = element_blank())
+
+  # Save overall plot
+  ggsave(file.path(output_dir, paste0(drug, "_Overall.png")), plot = p_overall, width = 10, height = 6)
+}
+
+```
+
+
+
+(New) Enhancements for shiny app
+```{r}
+# Get package data, brand and generic names
+all_ndc_nadac_awp_package_2013_2022 <- all_ndc_nadac_awp_2013_2022 %>%
+  left_join(drug_ndc_detail_package, by = c("ndc_11" = "NDC_Formatted"))
+
+################################################################################
+# Avoiding duplication due to many drug names
+
+# If there are multiple rows per NDC_Formatted, this will retain the first one
+drug_ndc_detail_unique <- drug_ndc_detail_package %>%
+  distinct(NDC_Formatted, .keep_all = TRUE)
+
+# Drop 'NDC' since it's the same as ndc_standard 
+drug_ndc_detail_unique <- drug_ndc_detail_unique %>%
+  select(-NDC)
+
+# left join and clean up column names
+all_ndc_nadac_awp_package_2013_2022 <- all_ndc_nadac_awp_2013_2022 %>%
+  left_join(drug_ndc_detail_unique, by = c("ndc_11" = "NDC_Formatted")) %>%
+  rename(Drug_Name = Drug_Name.x) %>%
+  select(-Drug_Name.y)
+
+################################################################################
+# columns to extract from Total_Drug_Data
+columns_to_extract <- c("Drug_Name", "Year",
+                        "Total Prescriptions", "Total Patients",
+                        "Total Cost", "Out-Of-Pocket Cost",
+                        "Total Cost Per Day", "Out-Of-Pocket Cost Per Day")
+
+# Join 
+all_ndc_nadac_awp_package_2013_2022 <- all_ndc_nadac_awp_package_2013_2022  %>%
+  left_join(
+    Total_Drug_Data %>% select(all_of(columns_to_extract)),
+    by = c("Drug_Name", "year" = "Year")
+  )
+
+```
+
+
+
+(New) Shiny app for the plots
+Live app here: https://k6clpl-ron-balaban.shinyapps.io/RonBalaban_698_Drug_Rebate_Estimates/
+```{r}
+library(shiny)
+library(dplyr)
+library(tidyr)
+library(shinyWidgets)
+library(openxlsx)
+library(later)
+library(DT)
+library(plotly)
+library(ggplot2)
+library(patchwork)
+
+# Load data
+all_ndc_nadac_awp_package_2013_2022 <- readRDS("all_ndc_nadac_awp_package_2013_2022.rds")
+
+ui <- fluidPage(
+  titlePanel("Drug Price and Utilization Trends"),
+  sidebarLayout(
+    sidebarPanel(
+      width = 3,
+      selectizeInput("drug", "Select Drug:",
+                     choices = sort(unique(all_ndc_nadac_awp_package_2013_2022$Drug_Name)),
+                     options = list(placeholder = "Type to search...", create = TRUE)),
+      
+      sliderInput("year_range", "Select Year Range:",
+                  min = min(all_ndc_nadac_awp_package_2013_2022$year),
+                  max = max(all_ndc_nadac_awp_package_2013_2022$year),
+                  value = c(2013, 2022), sep = ""),
+      
+      selectInput("plot_type", "Plot Type:", choices = c("Overall", "Faceted")),
+      
+      checkboxGroupInput("ndc_category", "NDC Category:",
+                         choices = sort(unique(all_ndc_nadac_awp_package_2013_2022$ndc_category))),
+      
+      selectInput("ndc_standard", "Select Standard NDC(s):", choices = NULL, multiple = TRUE),
+      selectInput("ndc_11", "Select CMS NDC(s):", choices = NULL, multiple = TRUE),
+      pickerInput("metrics", "Select Metrics:",
+                  choices = c("average_nadac", "average_awp", "average_wac", "rebate_min", "rebate_avg", "rebate_max"),
+                  selected = c("average_nadac", "average_awp", "average_wac", "rebate_min", "rebate_avg", "rebate_max"),
+                  multiple = TRUE,
+                  options = list(`actions-box` = TRUE)),
+      
+      downloadButton("download_data", "Download Data"),
+      downloadButton("download_plot", "Download Plot"),
+      hr(),
+      uiOutput("brand_generic_panel"),
+      uiOutput("clicked_name_info")
+    ),
+    mainPanel(
+      uiOutput("plot_ui"),
+      hr(),
+      div(
+        style = "height: 300px; overflow-y: auto; margin-top: 200px;",
+        DTOutput("filtered_table")
+      )
+    )
+  )
+)
+
+server <- function(input, output, session) {
+  
+  observeEvent(input$drug, {
+    valid_drugs <- unique(all_ndc_nadac_awp_package_2013_2022$Drug_Name)
+    if (input$drug %in% valid_drugs) {
+      filtered <- all_ndc_nadac_awp_package_2013_2022 %>%
+        filter(Drug_Name == input$drug)
+      updateSelectInput(session, "ndc_standard", choices = sort(unique(filtered$ndc_standard)), selected = NULL)
+      updateSelectInput(session, "ndc_11", choices = sort(unique(filtered$ndc_11)), selected = NULL)
+    } else {
+      updateSelectInput(session, "ndc_standard", choices = NULL)
+      updateSelectInput(session, "ndc_11", choices = NULL)
+    }
+  })
+  
+  observeEvent(input$ndc_standard, {
+    req(input$drug %in% all_ndc_nadac_awp_package_2013_2022$Drug_Name)
+    filtered <- all_ndc_nadac_awp_package_2013_2022 %>%
+      filter(Drug_Name == input$drug, ndc_standard %in% input$ndc_standard)
+    updateSelectInput(session, "ndc_11", choices = sort(unique(filtered$ndc_11)), selected = NULL)
+  })
+  
+  filtered_data <- reactive({
+    if (!(input$drug %in% all_ndc_nadac_awp_package_2013_2022$Drug_Name)) return(NULL)
+    
+    df <- all_ndc_nadac_awp_package_2013_2022 %>%
+      filter(Drug_Name == input$drug,
+             year >= input$year_range[1],
+             year <= input$year_range[2])
+    
+    if (!is.null(input$ndc_category) && length(input$ndc_category) > 0) {
+      df <- df %>% filter(ndc_category %in% input$ndc_category)
+    }
+    if (!is.null(input$ndc_standard) && length(input$ndc_standard) > 0) {
+      df <- df %>% filter(ndc_standard %in% input$ndc_standard)
+    }
+    if (!is.null(input$ndc_11) && length(input$ndc_11) > 0) {
+      df <- df %>% filter(ndc_11 %in% input$ndc_11)
+    }
+    
+    df
+  })
+  
+  output$plot_ui <- renderUI({
+    show_util_plot <- input$plot_type == "Overall" &&
+      is.null(input$ndc_standard) && is.null(input$ndc_11)
+    
+    if (show_util_plot) {
+      fluidRow(
+        column(width = 6, plotlyOutput("nadac_plot")),
+        column(width = 6, plotlyOutput("rx_plot"))
+      )
+    } else {
+      fluidRow(column(width = 12, plotlyOutput("nadac_plot")))
+    }
+  })
+  
+  output$nadac_plot <- renderPlotly({
+    df <- filtered_data()
+    
+    if (nrow(df) == 0) {
+      return(plotly_empty() %>%
+               layout(title = list(text = "No data available for selected filters.")))
+    }
+    
+    selected_metrics <- input$metrics
+    if (length(selected_metrics) == 0) {
+      return(plotly_empty() %>%
+               layout(title = list(text = "Please select at least one metric.")))
+    }
+    
+    if (input$plot_type == "Overall") {
+      summary_data <- df %>%
+        group_by(year) %>%
+        summarise(across(all_of(selected_metrics), ~ mean(.x, na.rm = TRUE)), .groups = "drop") %>%
+        pivot_longer(-year, names_to = "Metric", values_to = "Value")
+      
+      p <- ggplot(summary_data, aes(x = year, y = Value, color = Metric)) +
+        geom_line(size = 1) +
+        geom_point(size = 2) +
+        labs(title = paste("Overall Price Trends for", input$drug),
+             x = NULL, y = "Price ($)", color = "Metric") +
+        scale_y_continuous(labels = scales::label_dollar()) +
+        theme_minimal()
+      
+      ggplotly(p, source = "main_plot")
+      
+    } else {
+      ndc_count <- length(unique(df$ndc_standard))
+      if (ndc_count > 25) {
+        limited_ndcs <- unique(df$ndc_standard)[1:25]
+        df <- df %>% filter(ndc_standard %in% limited_ndcs)
+      }
+      
+      long_data <- df %>%
+        pivot_longer(cols = all_of(selected_metrics), names_to = "Metric", values_to = "Value")
+      
+      unique_standard <- unique(df$ndc_standard)
+      unique_cms <- unique(df$ndc_cms)
+      
+      if (length(unique_standard) == 1 && length(unique_cms) > 1) {
+        plots <- long_data %>%
+          split(.$ndc_cms) %>%
+          lapply(function(subdf) {
+            ggplot(subdf, aes(x = year, y = Value, color = Metric)) +
+              geom_line(size = 1) +
+              geom_point(size = 2) +
+              facet_wrap(~ ndc_standard, scales = "free_y") +
+              labs(title = paste("CMS NDC:", unique(subdf$ndc_cms)),
+                   x = NULL, y = "Price ($)", color = "Metric") +
+              scale_y_continuous(labels = scales::label_dollar()) +
+              theme_minimal() +
+              theme(strip.text = element_text(face = "bold"))
+          })
+        
+        final_plot <- wrap_plots(plots, ncol = 1)
+        return(final_plot)
+      }
+      
+      p <- ggplot(long_data, aes(x = year, y = Value, color = Metric)) +
+        geom_line(size = 1) +
+        geom_point(size = 2) +
+        facet_wrap(~ ndc_standard, scales = "free_y") +
+        labs(title = paste("Faceted Price Trends for", input$drug),
+             x = NULL, y = "Price ($)", color = "Metric") +
+        scale_y_continuous(labels = scales::label_dollar()) +
+        theme_minimal() +
+        theme(strip.text = element_text(face = "bold"))
+      
+      ggplotly(p, source = "main_plot")
+    }
+  })
+  
+  observe({
+    df <- filtered_data()
+    if (input$plot_type == "Faceted" && length(unique(df$ndc_standard)) > 25) {
+      showModal(modalDialog(
+        title = "Notice",
+        "High number of NDC's detected, please narrow your selection in the side panel.",
+        easyClose = TRUE,
+        footer = NULL
+      ))
+    }
+  })
+  
+  output$rx_plot <- renderPlotly({
+    if (input$plot_type != "Overall" ||
+        !is.null(input$ndc_standard) || length(input$ndc_standard) > 0 ||
+        !is.null(input$ndc_11) || length(input$ndc_11) > 0) return(NULL)
+    
+    df <- filtered_data()
+    if (is.null(df) || nrow(df) == 0) return(NULL)
+    
+    df <- df %>%
+      mutate(`Total Prescriptions` = as.numeric(gsub(",", "", `Total Prescriptions`)),
+             `Total Patients` = as.numeric(gsub(",", "", `Total Patients`)))
+    
+    summary_data <- df %>%
+      group_by(year) %>%
+      summarise(`Total Prescriptions` = sum(`Total Prescriptions`, na.rm = TRUE),
+                `Total Patients` = sum(`Total Patients`, na.rm = TRUE),
+                .groups = "drop") %>%
+      pivot_longer(cols = -year, names_to = "Metric", values_to = "Value")
+    
+    plot_ly(summary_data, x = ~year, y = ~Value, color = ~Metric, type = 'scatter', mode = 'lines+markers') %>%
+      layout(title = paste("Utilization Trends for", input$drug),
+             xaxis = list(title = ""),
+             yaxis = list(title = ""))
+  })
+  
+  output$filtered_table <- renderDT({
+    df <- filtered_data()
+    if (is.null(df) || nrow(df) == 0) return(NULL)
+    
+    df <- df %>% select(-Brand_Names, -Generic_Names, -SAMPLE_PACKAGE)
+    cols_to_round <- c("avg_old_nadac", "avg_new_nadac", "average_nadac", 
+                       "average_awp", "average_wac", "rebate_min", 
+                       "rebate_avg", "rebate_max")
+    df_rounded <- df
+    for (col in cols_to_round) {
+      if (col %in% names(df_rounded)) {
+        df_rounded[[col]] <- round(df_rounded[[col]], 2)
+      }
+    }
+    datatable(df_rounded, options = list(pageLength = 5, lengthMenu = c(5, 10, 25, 50, 100)), rownames = FALSE)
+  })
+  
+  output$brand_generic_panel <- renderUI({
+    req(input$drug %in% all_ndc_nadac_awp_package_2013_2022$Drug_Name)
+    filtered <- all_ndc_nadac_awp_package_2013_2022 %>%
+      filter(Drug_Name == input$drug)
+    brand_names <- unique(unlist(strsplit(paste(filtered$Brand_Names, collapse = "; "), "; ")))
+    generic_names <- unique(unlist(strsplit(paste(filtered$Generic_Names, collapse = "; "), "; ")))
+    tagList(
+      strong("Brand Names:"), paste(brand_names, collapse = ", "), br(),
+      strong("Generic Names:"), paste(generic_names, collapse = ", ")
+    )
+  })
+  
+  output$clicked_name_info <- renderUI({
+    click_data <- event_data("plotly_click", source = "main_plot")
+    if (is.null(click_data)) return(NULL)
+    
+    x_val <- click_data$x
+    df <- filtered_data()
+    if (!is.null(df) && nrow(df) > 0 && !is.null(x_val)) {
+      drug_names <- unique(df$Drug_Name)
+      tagList(
+        tags$hr(),
+        strong("Drug Name(s) associated with clicked point:"),
+        tags$p(paste(drug_names, collapse = ", "))
+      )
+    } else {
+      NULL
+    }
+  })
+}
+
+shinyApp(ui = ui, server = server)
+
+```
+
+
+
+
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------Potential Enhancements--------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+Formulary tier
+
+https://data.cms.gov/provider-summary-by-type-of-service/medicare-part-d-prescribers/quarterly-prescription-drug-plan-formulary-pharmacy-network-and-pricing-information
+
+https://data.cms.gov/provider-summary-by-type-of-service/medicare-part-d-prescribers/monthly-prescription-drug-plan-formulary-and-pharmacy-network-information
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
