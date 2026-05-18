@@ -1,2 +1,5 @@
-# CUNY-SPS-R
-CUNY SPS R Bridge
+# CUNY-SPS
+CUNY SPS Python Code
+
+R Portfiolio:
+https://rpubs.com/Rbalaba1
